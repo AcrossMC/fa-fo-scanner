@@ -102,6 +102,18 @@ def body_bounds(hao, hac):
     return hac, hac
 
 
+def persist(raw):
+    """Fa et Fo durent : un état ne change que lorsque le signal inverse apparaît (corps entièrement de l'autre côté
+    des deux lignes). Entre-temps (corps à cheval sur une ligne, entre les deux lignes), l'état précédent continue."""
+    st = np.zeros(len(raw), dtype=int)
+    cur = 0
+    for i, v in enumerate(raw):
+        if v != 0:
+            cur = int(v)
+        st[i] = cur
+    return st
+
+
 def classify(hao, hac, mm, tk):
     """+1 = Fa (corps au-dessus des deux lignes), -1 = Fo (corps sous les deux lignes), 0 = neutre."""
     lo, hi = body_bounds(hao, hac)
@@ -241,7 +253,7 @@ def analyze_tf(df, tf, now_eff, rng):
     hao, hah, hal, hac = heikin_ashi(o, h, l, c)
     sh, sl, sc = (hah, hal, hac) if INDICATORS_ON == "ha" else (h, l, c)
     mm, tk = lines(sh, sl, sc)
-    st = classify(hao, hac, mm, tk)
+    st = persist(classify(hao, hac, mm, tk))
 
     forming = bar_end(idx[-1], tf) > now_eff
     nc = len(df) - 1 if forming else len(df)          # nombre de bougies clôturées

@@ -1,0 +1,108 @@
+ticker,name
+# Actions cotées à Paris (SBF 120 et valeurs liquides). Format : ticker Yahoo (.PA),Nom
+# Le scanner écarte automatiquement les valeurs trop peu liquides (voir MIN_TURNOVER_EUR dans scanner.py).
+# Pour ajouter une action : une ligne « TICKER.PA,Nom ». Pour en retirer une : supprimez la ligne.
+AI.PA,Air Liquide
+AIR.PA,Airbus
+ALO.PA,Alstom
+MT.PA,ArcelorMittal
+CS.PA,AXA
+BNP.PA,BNP Paribas
+EN.PA,Bouygues
+CAP.PA,Capgemini
+CA.PA,Carrefour
+ACA.PA,Crédit Agricole
+BN.PA,Danone
+DSY.PA,Dassault Systèmes
+ENGI.PA,Engie
+EL.PA,EssilorLuxottica
+ERF.PA,Eurofins
+RMS.PA,Hermès
+KER.PA,Kering
+OR.PA,L'Oréal
+LR.PA,Legrand
+MC.PA,LVMH
+ML.PA,Michelin
+ORA.PA,Orange
+RI.PA,Pernod Ricard
+PUB.PA,Publicis
+RNO.PA,Renault
+SAF.PA,Safran
+SGO.PA,Saint-Gobain
+SAN.PA,Sanofi
+SU.PA,Schneider Electric
+GLE.PA,Société Générale
+STLAP.PA,Stellantis
+STMPA.PA,STMicroelectronics
+TEP.PA,Teleperformance
+HO.PA,Thales
+TTE.PA,TotalEnergies
+URW.PA,Unibail-Rodamco-Westfield
+VIE.PA,Veolia
+DG.PA,Vinci
+ADP.PA,Aéroports de Paris
+AF.PA,Air France-KLM
+AKE.PA,Arkema
+AM.PA,Dassault Aviation
+AMUN.PA,Amundi
+ATE.PA,Alten
+ATO.PA,Atos
+AYV.PA,Ayvens
+BIM.PA,bioMérieux
+BOL.PA,Bolloré
+BVI.PA,Bureau Veritas
+CO.PA,Casino Guichard
+COV.PA,Covivio
+DBG.PA,Derichebourg
+DEC.PA,JCDecaux
+DIM.PA,Sartorius Stedim Biotech
+EDEN.PA,Edenred
+ELIS.PA,Elis
+EMEIS.PA,Emeis
+ENX.PA,Euronext
+ERA.PA,Eramet
+ETL.PA,Eutelsat
+EXA.PA,Exail Technologies
+FDJ.PA,FDJ United
+FGR.PA,Eiffage
+FNAC.PA,Fnac Darty
+FRVIA.PA,Forvia
+GET.PA,Getlink
+GFC.PA,Gecina
+GTT.PA,GTT
+ICAD.PA,Icade
+IPN.PA,Ipsen
+IPS.PA,Ipsos
+KOF.PA,Kaufman & Broad
+LI.PA,Klépierre
+MF.PA,Wendel
+MMB.PA,Lagardère
+MRN.PA,Mersen
+NEX.PA,Nexans
+NK.PA,Imerys
+NXI.PA,Nexity
+OVH.PA,OVHcloud
+PLX.PA,Pluxee
+RCO.PA,Rémy Cointreau
+RF.PA,Eurazeo
+RUI.PA,Rubis
+RXL.PA,Rexel
+SCR.PA,SCOR
+SK.PA,SEB
+SOI.PA,Soitec
+SOP.PA,Sopra Steria
+SPIE.PA,SPIE
+SW.PA,Sodexo
+TE.PA,Technip Energies
+TFI.PA,TF1
+TKO.PA,Tikehau Capital
+TRI.PA,Trigano
+UBI.PA,Ubisoft
+VIRP.PA,Virbac
+VIV.PA,Vivendi
+VK.PA,Vallourec
+VLA.PA,Valneva
+VRLA.PA,Verallia
+WLN.PA,Worldline
+VCT.PA,Vicat
+CDA.PA,Compagnie des Alpes

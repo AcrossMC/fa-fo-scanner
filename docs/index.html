@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fa·Fo Scanner</title>
+<meta name="description" content="Scanner Heikin Ashi / MM7 / Tenkan sur les actions françaises liquides">
+<meta name="theme-color" content="#0f1419">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fa·Fo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Fa·Fo</h1>
+    <span id="updated" class="muted">Chargement…</span>
+  </div>
+  <div class="actions">
+    <button id="settingsBtn" class="icon-btn" aria-label="Réglages">⚙</button>
+    <button id="refresh" class="icon-btn" aria-label="Actualiser">↻</button>
+  </div>
+</header>
+
+<section id="positions" class="positions" aria-label="Mes positions" hidden></section>
+
+<nav class="tabs tf" id="tfTabs" role="tablist" aria-label="Unité de temps"></nav>
+<nav class="tabs seg" id="stTabs" role="tablist" aria-label="État"></nav>
+
+<div class="search-wrap">
+  <input id="search" type="search" inputmode="search" autocomplete="off" placeholder="Rechercher une action…" aria-label="Rechercher une action">
+</div>
+
+<main id="list" aria-live="polite"></main>
+
+<footer class="foot muted" id="foot"></footer>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<div id="backdrop" class="backdrop" hidden></div>
+<section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden></section>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -6,8 +6,8 @@ S+  = « S haussière » : bougie HA sans corps (corps ≤ 10 % de sa hauteur) a
 S-  = « S baissière » : bougie HA sans corps après ≥ 3 bougies HA vertes (🟥)
 Actions détenues (variable HOLDINGS) : alertes étendues et notifications ⭐ en priorité haute.
 
-Fa  = « validé »     : le CORPS de la dernière bougie Heikin Ashi CLÔTURÉE est au-dessus de la MM7 ET de la Tenkan
-Fo  = « invalidé »   : le CORPS de la dernière bougie Heikin Ashi CLÔTURÉE est sous la MM7 ET la Tenkan
+Fa  = « validé »     : le HAUT du corps d'une bougie Heikin Ashi clôturée dépasse la MM7 ET la Tenkan ; dure jusqu'au Fo
+Fo  = « invalidé »   : le BAS du corps d'une bougie Heikin Ashi clôturée passe sous la MM7 ET la Tenkan ; dure jusqu'au Fa
 En cours de validation : la bougie en formation n'est pas encore clôturée ; on estime la probabilité (en %)
                          qu'elle clôture avec la condition Fa remplie (simulation Monte-Carlo, voir simulate()).
 
@@ -41,7 +41,8 @@ import requests
 # ------------------------------- Réglages --------------------------------
 MA_PERIOD = 7              # MM7
 TENKAN_PERIOD = 9          # Tenkan-sen (Ichimoku) = (plus haut 9 + plus bas 9) / 2
-BODY_MODE = "full"         # "full": ouverture ET clôture HA au-delà des deux lignes | "close": clôture seule
+BODY_MODE = "edge"         # "edge": Fa = HAUT du corps au-dessus des deux lignes, Fo = BAS du corps sous les deux lignes
+                           # "full": corps ENTIER au-delà des deux lignes | "close": clôture seule
 INDICATORS_ON = "ha"       # "ha": MM7/Tenkan calculées sur les bougies Heikin Ashi | "normal": sur bougies classiques
 MIN_TURNOVER_EUR = 2_000_000   # liquidité : volume moyen échangé par jour (20 j) en euros
 DATA_DELAY_MIN = 15        # Yahoo diffuse Euronext avec ~15 min de retard
@@ -96,9 +97,12 @@ def lines(sh, sl, sc):
     return mm, tk
 
 
-def body_bounds(hao, hac):
+def body_refs(hao, hac):
+    """(repère pour Fa, repère pour Fo) selon BODY_MODE : Fa si repère_fa > les deux lignes, Fo si repère_fo < les deux lignes."""
+    if BODY_MODE == "edge":
+        return np.maximum(hao, hac), np.minimum(hao, hac)      # haut du corps pour Fa, bas du corps pour Fo
     if BODY_MODE == "full":
-        return np.minimum(hao, hac), np.maximum(hao, hac)
+        return np.minimum(hao, hac), np.maximum(hao, hac)      # corps entier
     return hac, hac
 
 
@@ -115,13 +119,16 @@ def persist(raw):
 
 
 def classify(hao, hac, mm, tk):
-    """+1 = Fa (corps au-dessus des deux lignes), -1 = Fo (corps sous les deux lignes), 0 = neutre."""
-    lo, hi = body_bounds(hao, hac)
+    """+1 = Fa, -1 = Fo, 0 = aucun signal sur cette bougie (voir BODY_MODE).
+    Si une même bougie remplit les deux conditions (corps qui couvre toute la zone MM7-Tenkan), aucun signal : l'état précédent continue."""
+    up_ref, dn_ref = body_refs(hao, hac)
     top, bot = np.maximum(mm, tk), np.minimum(mm, tk)
     valid = ~np.isnan(top)
+    fa = valid & (up_ref > top)
+    fo = valid & (dn_ref < bot)
     st = np.zeros(len(hac), dtype=int)
-    st[valid & (lo > top)] = 1
-    st[valid & (hi < bot)] = -1
+    st[fa & ~fo] = 1
+    st[fo & ~fa] = -1
     return st
 
 
@@ -232,9 +239,10 @@ def simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, remaining, sigma, rng, 
         s_h, s_l, s_c = hi_s, lo_s, cl_s
     mm = (sc[n - (MA_PERIOD - 1):n].sum() + s_c) / MA_PERIOD
     tk = (np.maximum(sh[n - (TENKAN_PERIOD - 1):n].max(), s_h) + np.minimum(sl[n - (TENKAN_PERIOD - 1):n].min(), s_l)) / 2.0
-    lo_b, hi_b = body_bounds(np.full(SIM_PATHS, hao[n]), hac_s)
-    fa = lo_b > np.maximum(mm, tk)
-    fo = hi_b < np.minimum(mm, tk)
+    up_ref, dn_ref = body_refs(np.full(SIM_PATHS, hao[n]), hac_s)
+    fa_raw = up_ref > np.maximum(mm, tk)
+    fo_raw = dn_ref < np.minimum(mm, tk)
+    fa, fo = fa_raw & ~fo_raw, fo_raw & ~fa_raw
     hh = hah_s - hal_s
     nobody = (hh > 0) & (np.abs(hac_s - hao[n]) <= S_BODY_MAX * hh)
     p_nobody = float(nobody.mean())
@@ -481,7 +489,8 @@ def build_notification(e, stock, app_url, held=False):
         what = (f"S {'haussière' if kind == 'S+' else 'baissière'} {lab} : bougie Heikin Ashi sans corps"
                 + (f" après {n} {nature}" if n else f" après des {nature}"))
     else:
-        what = f"Corps Heikin Ashi {lab} {'au-dessus' if kind == 'Fa' else 'sous'} de la MM7 et de la Tenkan"
+        part = ("Haut du corps" if kind == "Fa" else "Bas du corps") if BODY_MODE == "edge" else "Corps"
+        what = f"{part} Heikin Ashi {lab} {'au-dessus' if kind == 'Fa' else 'sous'} de la MM7 et de la Tenkan"
     message = f"{stock['name']} — {stock['price']:.2f} €\n{what}\n{summary_line(stock)}"
     priority = 3
     if held:

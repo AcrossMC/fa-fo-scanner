@@ -5,8 +5,8 @@ Il envoie les notifications sur votre téléphone (application ntfy) et met à j
 
 ## Ce que ça fait
 
-- **Fa1h · AIR** (🟢) : le corps d'une bougie Heikin Ashi 1h clôture au-dessus de la MM7 et de la Tenkan. La configuration **dure** tant qu'aucun corps ne clôture entièrement sous les deux lignes.
-- **Fo1h · AIR** (🔴) : le corps clôture entièrement sous la MM7 et la Tenkan : c'est l'invalidation du Fa, et le Fo dure à son tour jusqu'au prochain Fa. Entre les deux, une bougie à cheval sur une ligne ne change rien.
+- **Fa1h · AIR** (🟢) : le **haut du corps** d'une bougie Heikin Ashi 1h clôturée dépasse la MM7 et la Tenkan. La configuration **dure** jusqu'au Fo.
+- **Fo1h · AIR** (🔴) : le **bas du corps** d'une bougie clôturée passe sous la MM7 et la Tenkan : c'est l'invalidation du Fa, et le Fo dure à son tour jusqu'au prochain Fa. Entre les deux signaux, l'état ne change pas. Si une même bougie remplit les deux conditions (corps qui couvre toute la zone entre les lignes), l'état précédent continue.
 - **S haussière** (🟩) : une bougie Heikin Ashi **sans corps** (corps ≤ 10 % de sa hauteur) apparaît après **au moins 3 bougies HA baissières** consécutives. Notifications en 4h, 1j, 1sem, 1mois. Exemple : « 🟩 S4h · AIR ».
 - **S baissière** (🟥) : même bougie sans corps, mais après **au moins 3 bougies HA vertes** consécutives. Visible dans l'application pour toutes les actions ; **notifiée uniquement pour vos positions**. Pas de condition sur la MM7 ou la Tenkan pour S.
 - Pour les actions non détenues, Fa et Fo ne notifient qu'en 1j, 1sem, 1mois ; le 1h et le 4h (reconstruit : 9h-13h puis 13h-17h35) restent consultables dans l'application. Les réglages sont dans `NOTIFY` en haut de `scanner.py`.
@@ -69,7 +69,7 @@ Le jeton reste sur ce téléphone (stockage du navigateur) ; ne le partagez pas.
 
 | Réglage | Valeur actuelle | Rôle |
 |---|---|---|
-| `BODY_MODE` | `"full"` | `"full"` : ouverture ET clôture HA au-delà des deux lignes ; `"close"` : clôture seule |
+| `BODY_MODE` | `"edge"` | `"edge"` : haut du corps pour Fa, bas du corps pour Fo ; `"full"` : corps entier au-delà des deux lignes ; `"close"` : clôture seule |
 | `INDICATORS_ON` | `"ha"` | MM7/Tenkan calculées sur les bougies HA (comme sur un graphique HA) ; `"normal"` : sur bougies classiques |
 | `NOTIFY` | Fa, Fo : 1j, 1sem, 1mois ; S haussière : 4h, 1j, 1sem, 1mois ; S baissière : aucune | notifications des actions non détenues, par configuration |
 | `NOTIFY_HELD` | toutes les unités de temps, pour les 4 configurations | notifications des actions détenues |

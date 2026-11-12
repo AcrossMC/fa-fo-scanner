@@ -1,0 +1,47 @@
+name: Scan Fa/Fo
+
+on:
+  schedule:
+    - cron: "*/15 7-16 * * 1-5"
+    - cron: "55 15,16 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Installer les dépendances
+        run: pip install -r requirements.txt
+
+      - name: Scanner et notifier
+        run: python scanner.py
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          HOLDINGS: ${{ vars.HOLDINGS }}
+
+      - name: Publier les données
+        run: |
+          git config user.name "fa-scanner"
+          git config user.email "fa-scanner@users.noreply.github.com"
+          git add docs/data.json
+          if [ -f state.json ]; then git add state.json; fi
+          if ! git diff --cached --quiet; then
+            git commit -m "scan $(date -u +%Y-%m-%d_%H:%M)"
+            git pull --rebase -q
+            git push
+          fi

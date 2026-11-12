@@ -137,7 +137,7 @@
     $("updated").textContent = `Analyse du ${day} à ${hm}` + (ageMin > 90 ? " (marché fermé ou données anciennes)" : "");
     const m = data.meta;
     $("foot").innerHTML = `${m.analysed} actions analysées sur ${m.universe} (liquidité minimale requise). Cours différés d'environ ${m.delay_min} min.<br>`
-      + `Fa : corps de la bougie Heikin Ashi clôturée au-dessus de la MM7 et de la Tenkan. Fo : sous les deux. `
+      + `Fa : démarre quand le corps d'une bougie Heikin Ashi clôture au-dessus de la MM7 et de la Tenkan, et dure jusqu'à ce qu'un corps clôture entièrement sous les deux (Fo, qui dure à son tour jusqu'au prochain Fa). `
       + `${sq("up")} S haussière : bougie HA sans corps après des bougies baissières. ${sq("down")} S baissière : sans corps après des bougies vertes. `
       + `Le pourcentage « en cours » est une estimation statistique, pas une prévision. `
       + `Pour suivre une action : ouvrez-la et touchez « J'ai cette action ». Information indicative, pas un conseil en investissement.`;
@@ -166,7 +166,11 @@
       let probs;
       if (r.forming && r.p_fa != null) {
         probs = `<div class="probs"><div class="ptitle">À la clôture de la bougie en cours</div>`
-          + probRow(dot("fa"), "Fa", r.p_fa, "fa") + probRow(dot("fo"), "Fo", r.p_fo, "fo")
+          + (r.state === "fa"
+            ? probRow(dot("fa"), "Fa maintenu", Math.max(0, 1 - r.p_fo), "fa") + probRow(dot("fo"), "Invalidation Fo", r.p_fo, "fo")
+            : r.state === "fo"
+              ? probRow(dot("fo"), "Fo maintenu", Math.max(0, 1 - r.p_fa), "fo") + probRow(dot("fa"), "Validation Fa", r.p_fa, "fa")
+              : probRow(dot("fa"), "Validation Fa", r.p_fa, "fa") + probRow(dot("fo"), "Validation Fo", r.p_fo, "fo"))
           + (r.p_s_up > 0 ? probRow(sq("up"), "S haussière", r.p_s_up, "fa") : "")
           + (r.p_s_down > 0 ? probRow(sq("down"), "S baissière", r.p_s_down, "fo") : "") + `</div>`;
       } else {
@@ -181,7 +185,7 @@
       <button class="posbtn${isHeld ? " on" : ""}" id="posBtn" data-t="${esc(t)}">${isHeld ? "⭐ En position · retirer" : "☆ J'ai cette action"}</button>
       <div class="tf-table">${rows}</div>
       <a class="link" href="${tv}" target="_blank" rel="noopener">Ouvrir le graphique (TradingView)</a>
-      <p class="note">Fa = corps Heikin Ashi clôturé au-dessus de la MM7 et de la Tenkan · Fo = sous les deux · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
+      <p class="note">Fa = démarre quand le corps Heikin Ashi clôture au-dessus de la MM7 et de la Tenkan, dure jusqu'à un corps entièrement sous les deux · Fo = l'inverse · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
     showSheet();
     if (location.hash.slice(1) !== t) history.replaceState(null, "", "#" + t);
   }

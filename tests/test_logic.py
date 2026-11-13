@@ -252,6 +252,42 @@ def test_s_config():
     sc.S_MIN_RUN = 99
     assert not sc.analyze_tf(crafted("down"), "1d", after, rng)["s"]["active"]             # seuil respecté
     sc.S_MIN_RUN = old
+    # règle des mèches : les 3 bougies juste avant la bougie sans corps doivent avoir peu de mèche haute (S+) / basse (S-)
+    def wick_df(direction, bad_back=None, n=30):
+        """Bougies déjà « HA » (heikin_ashi neutralisé) : n bougies de même sens puis une bougie sans corps.
+        bad_back = k : la k-ième bougie avant la bougie sans corps reçoit une grande mèche du côté testé."""
+        o, h, l, c = [], [], [], []
+        for i in range(n):
+            if direction == "down":
+                op, cl = 200 - i, 199 - i
+                hi, lo = op, cl - 0.05
+            else:
+                op, cl = 100 + i, 101 + i
+                hi, lo = cl + 0.05, op
+            if bad_back is not None and i == n - bad_back:
+                if direction == "down": hi = op + 0.6
+                else: lo = op - 0.6
+            o.append(op); h.append(hi); l.append(lo); c.append(cl)
+        ref = c[-1]
+        o.append(ref); c.append(ref); h.append(ref + 0.5); l.append(ref - 0.5)
+        days = pd.bdate_range(end="2026-11-10", periods=n + 1).tz_localize(P)
+        return pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=days)
+
+    real_ha = sc.heikin_ashi
+    sc.heikin_ashi = lambda o, h, l, c: (o, h, l, c)
+    try:
+        for direction, sd in (("down", "up"), ("up", "down")):
+            ok = sc.analyze_tf(wick_df(direction), "1d", after, rng)["s"]
+            assert ok["active"] and ok["dir"] == sd, (direction, ok)
+            for back in (1, 2, 3):                                              # mèche sur l'une des 3 dernières : pas de S
+                assert not sc.analyze_tf(wick_df(direction, bad_back=back), "1d", after, rng)["s"]["active"], (direction, back)
+            assert sc.analyze_tf(wick_df(direction, bad_back=6), "1d", after, rng)["s"]["active"]   # bougie plus ancienne : libre
+        old_w = sc.S_WICK_MAX
+        sc.S_WICK_MAX = 1.0                                                      # tolérance maximale : plus de contrainte
+        assert sc.analyze_tf(wick_df("down", bad_back=1), "1d", after, rng)["s"]["active"]
+        sc.S_WICK_MAX = old_w
+    finally:
+        sc.heikin_ashi = real_ha
     # notifications S : carrés vert / rouge
     st_up = {"name": "Airbus", "price": 171.5, "chg": 1.2, "tf": {"4h": {"state": "fo", "s": {"active": True, "dir": "up", "n": 5, "bar": "b"}}}}
     t, m, _, prio = sc.build_notification({"ticker": "AIR.PA", "tf": "4h", "kind": "S+", "bar": "b"}, st_up, "")

@@ -13,6 +13,10 @@ En cours de validation : la bougie en formation n'est pas encore clôturée ; on
 
 Unités de temps : 1h, 4h, 1 jour, 1 semaine, 1 mois (4h reconstruite à partir du 1h : 9h-13h puis 13h-17h35).
 
+Affichage et alertes (actions NON détenues) : uniquement Fa et S haussière EN COURS de validation (probabilité >= PROB_MIN),
+en 4h, 1j, 1sem, 1mois ; une Fa déjà validée n'est plus montrée. Fo et S baissière : actions détenues seulement
+(toutes unités de temps, le 1h avec un seuil de PROB_MIN_HELD_1H).
+
 Sorties :
   docs/data.json  -> lu par l'application mobile (docs/index.html)
   ntfy.sh         -> notifications push « 🟢 Fa1h · AIR » / « 🔴 Fo1h · AIR » (clic = état des lieux dans l'app)
@@ -44,15 +48,27 @@ TENKAN_PERIOD = 9          # Tenkan-sen (Ichimoku) = (plus haut 9 + plus bas 9) 
 BODY_MODE = "edge"         # "edge": Fa = HAUT du corps au-dessus des deux lignes, Fo = BAS du corps sous les deux lignes
                            # "full": corps ENTIER au-delà des deux lignes | "close": clôture seule
 INDICATORS_ON = "ha"       # "ha": MM7/Tenkan calculées sur les bougies Heikin Ashi | "normal": sur bougies classiques
-MIN_TURNOVER_EUR = 2_000_000   # liquidité : volume moyen échangé par jour (20 j) en euros
+MIN_TURNOVER_EUR = 1_000_000   # liquidité : volume moyen échangé par jour (20 j) en euros
 DATA_DELAY_MIN = 15        # Yahoo diffuse Euronext avec ~15 min de retard
-PROB_MIN = 0.20            # seuil d'affichage de l'onglet « En cours » dans l'application
-# Notifications par type de configuration : Fa, Fo, S+ (S haussière : sans corps après des bougies baissières),
-# S- (S baissière : sans corps après des bougies haussières). Valeurs : unités de temps qui notifient.
-NOTIFY = {"Fa": ["1d", "1w", "1mo"], "Fo": ["1d", "1w", "1mo"], "S+": ["4h", "1d", "1w", "1mo"], "S-": []}
-# Actions détenues (variable GitHub HOLDINGS) : alertes étendues, notifications ⭐ en priorité haute
+
+# --- Configurations « en cours de validation » (bougie en formation) ---
+PROB_MIN = 0.30            # une action apparaît (et notifie) quand sa probabilité de valider la configuration dépasse ce seuil
+PROB_HIGH = 0.60           # 2e notification (une seule par bougie) quand la probabilité dépasse ce seuil
+PROB_MIN_HELD_1H = 0.50    # seuil pour le 1h des actions détenues (le 1h n'est affiché QUE pour les actions détenues)
 _ALL = ["1h", "4h", "1d", "1w", "1mo"]
+VISIBLE_TF = ["4h", "1d", "1w", "1mo"]     # unités de temps affichées / notifiées pour les actions NON détenues
+# Types : Fa, Fo, S+ (S haussière : sans corps après des bougies baissières), S- (S baissière : après des bougies vertes).
+# Notifications « en cours » (alerte quand la probabilité franchit le seuil) : actions non détenues = Fa et S+ seulement.
+NOTIFY_PENDING = {"Fa": VISIBLE_TF, "S+": VISIBLE_TF}
+# Actions détenues (variable GitHub HOLDINGS) : tout, toutes unités de temps, notifications ⭐ en priorité haute
+NOTIFY_PENDING_HELD = {"Fa": _ALL, "Fo": _ALL, "S+": _ALL, "S-": _ALL}
+# Notifications de VALIDATION (bougie clôturée) : plus aucune pour les actions non détenues ; toutes pour les détenues.
+NOTIFY = {"Fa": [], "Fo": [], "S+": [], "S-": []}
 NOTIFY_HELD = {"Fa": _ALL, "Fo": _ALL, "S+": _ALL, "S-": _ALL}
+
+
+def threshold(tf, held):
+    return PROB_MIN_HELD_1H if (held and tf == "1h") else PROB_MIN
 S_MIN_RUN = 3              # S : nombre minimal de bougies HA de même sens consécutives avant la bougie sans corps
 S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture|) <= 10 % de la hauteur de la bougie HA
 MAX_PUSH_PER_RUN = 30     # au-delà : une seule notification récapitulative (ntfy.sh limite ~250 messages/jour)
@@ -312,6 +328,9 @@ def analyze_tf(df, tf, now_eff, rng):
         "since": idx[j].isoformat(),
         "bars": int(nc - j),
         "forming": bool(forming),
+        "bar_forming": idx[-1].isoformat() if forming else None,
+        "over": {"fa": bool(forming and classify(hao, hac, mm, tk)[-1] == 1),     # la bougie en formation remplit déjà Fa / Fo
+                 "fo": bool(forming and classify(hao, hac, mm, tk)[-1] == -1)},
         "p_fa": None,
         "p_fo": None,
         "p_s_up": None,
@@ -409,6 +428,15 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
                 continue
             for kind, ts in res.pop("events"):
                 events.append({"ticker": t, "tf": tf, "kind": kind, "bar": ts})
+            if res["forming"]:                         # configurations en cours de validation (suffixe « ~ »)
+                held = t in holdings
+                for kind, p, ok in (("Fa", res["p_fa"], res["state"] != "fa"),
+                                    ("Fo", res["p_fo"], res["state"] != "fo"),
+                                    ("S+", res["p_s_up"], True),
+                                    ("S-", res["p_s_down"], True)):
+                    if p is not None and ok and p >= threshold(tf, held):
+                        events.append({"ticker": t, "tf": tf, "kind": kind + "~", "bar": res["bar_forming"], "p": p,
+                                       "over": res["over"]["fa"] if kind == "Fa" else res["over"]["fo"] if kind == "Fo" else False})
             tfs[tf] = res
         if not tfs:
             continue
@@ -422,6 +450,9 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
             "updated": now.isoformat(),
             "delay_min": DATA_DELAY_MIN,
             "prob_min": PROB_MIN,
+            "prob_min_held_1h": PROB_MIN_HELD_1H,
+            "prob_high": PROB_HIGH,
+            "visible_tf": VISIBLE_TF,
             "labels": TF_LABEL,
             "universe": len(tickers),
             "analysed": len(stocks),
@@ -453,12 +484,23 @@ def select_new(events, state, holdings=frozenset()):
     """Événements plus récents que ceux déjà notifiés."""
     new = []
     for e in events:
-        rules = NOTIFY_HELD if e["ticker"] in holdings else NOTIFY
+        held = e["ticker"] in holdings
+        if e["kind"].endswith("~"):          # « en cours » : 1 alerte au seuil, 1 de plus si > PROB_HIGH, par bougie
+            base = e["kind"][:-1]
+            rules = NOTIFY_PENDING_HELD if held else NOTIFY_PENDING
+            if e["tf"] not in rules.get(base, []):
+                continue
+            key = f"{e['ticker']}|{e['tf']}|{e['kind']}|{e['bar']}"
+            e["level"] = 2 if e["p"] >= PROB_HIGH else 1
+            if e["level"] > int(state.get(key, 0)):
+                new.append((key, e))
+            continue
+        rules = NOTIFY_HELD if held else NOTIFY
         if e["tf"] not in rules.get(e["kind"], []):
             continue
         key = f"{e['ticker']}|{e['tf']}|{e['kind']}"
         last = state.get(key)
-        if last is None or pd.Timestamp(e["bar"]) > pd.Timestamp(last):
+        if last is None or pd.Timestamp(last if isinstance(last, str) else 0) < pd.Timestamp(e["bar"]):
             new.append((key, e))
     order = {tf: i for i, tf in enumerate(reversed(TF_ORDER))}      # positions détenues d'abord, puis grandes unités de temps
     new.sort(key=lambda ke: (ke[1]["ticker"] not in holdings, order[ke[1]["tf"]]))
@@ -479,8 +521,32 @@ def build_notification(e, stock, app_url, held=False):
     """(titre, message, lien, priorité). Les actions détenues : ⭐ + « POSITION » + priorité haute (5 = urgente pour les signaux baissiers)."""
     lab = TF_LABEL[e["tf"]]
     kind = e["kind"]
+    pending = kind.endswith("~")
+    kind = kind.rstrip("~")
     icon = {"Fa": "🟢", "Fo": "🔴", "S+": "🟩", "S-": "🟥"}[kind]
     name = "S" if kind.startswith("S") else kind
+    if pending:
+        pct = int(round(e["p"] * 100))
+        title = f"{icon} {name}{lab} {pct}% · {short(e['ticker'])}"
+        if kind == "Fa":
+            cond = "haut du corps au-dessus de la MM7 et de la Tenkan" if BODY_MODE == "edge" else "corps au-dessus de la MM7 et de la Tenkan"
+        elif kind == "Fo":
+            cond = "bas du corps sous la MM7 et la Tenkan" if BODY_MODE == "edge" else "corps sous la MM7 et la Tenkan"
+        else:
+            cond = f"bougie sans corps après {'des bougies baissières' if kind == 'S+' else 'des bougies vertes'}"
+        what = f"EN COURS : {pct} % de chances que la bougie {lab} clôture en {name} ({cond})"
+        if e.get("over"):
+            what += "\nLa bougie remplit déjà la condition en ce moment."
+        if e.get("level") == 2:
+            what += f"\nProbabilité supérieure à {int(PROB_HIGH * 100)} %."
+        message = f"{stock['name']} — {stock['price']:.2f} €\n{what}\n{summary_line(stock)}"
+        priority = 4 if e.get("level") == 2 else 3
+        if held:
+            title = f"⭐ {title}"
+            message = "POSITION DÉTENUE\n" + message
+            priority = 5 if kind in ("Fo", "S-") else 4
+        click = f"{app_url.rstrip('/')}/#{e['ticker']}@{e['tf']}" if app_url else None
+        return title, message, click, priority
     title = f"{icon} {name}{lab} · {short(e['ticker'])}"
     if kind in ("S+", "S-"):
         s = stock["tf"].get(e["tf"], {}).get("s", {})
@@ -497,24 +563,44 @@ def build_notification(e, stock, app_url, held=False):
         title = f"⭐ {title}"
         message = "POSITION DÉTENUE\n" + message
         priority = 5 if kind in ("Fo", "S-") else 4
-    click = f"{app_url.rstrip('/')}/#{e['ticker']}" if app_url else None
+    click = f"{app_url.rstrip('/')}/#{e['ticker']}@{e['tf']}" if app_url else None
     return title, message, click, priority
+
+
+def prune_state(state, keep_days=45):
+    """Supprime de state.json les alertes « en cours » anciennes (clé = ticker|tf|kind~|bougie) pour qu'il reste petit."""
+    limit = pd.Timestamp.now(tz=PARIS) - pd.Timedelta(days=keep_days)
+    out = {}
+    for k, v in state.items():
+        parts = k.split("|")
+        if len(parts) == 4:
+            try:
+                if pd.Timestamp(parts[3]) < limit:
+                    continue
+            except Exception:
+                pass
+        out[k] = v
+    return out
 
 
 def deliver(events, data, state, push, app_url, seeding, holdings=frozenset()):
     """Envoie les nouvelles alertes ; retourne (nouvel état, nombre envoyé)."""
     new = select_new(events, state, holdings)
-    state = dict(state)
+    state = prune_state(state)
+
+    def mark(key, e):
+        state[key] = e["level"] if e["kind"].endswith("~") else e["bar"]
+
     if seeding:                                  # premier passage : on mémorise sans notifier
         for key, e in new:
-            state[key] = e["bar"]
+            mark(key, e)
         return state, 0
     sent = 0
     for key, e in new[:MAX_PUSH_PER_RUN]:
         title, message, click, priority = build_notification(e, data["stocks"][e["ticker"]], app_url, e["ticker"] in holdings)
         try:
             push(title, message, click, priority)
-            state[key] = e["bar"]
+            mark(key, e)
             sent += 1
             time.sleep(0.4)
         except Exception as ex:
@@ -524,7 +610,7 @@ def deliver(events, data, state, push, app_url, seeding, holdings=frozenset()):
         try:
             push(f"⚠️ {len(rest)} autres signaux", "Ouvrez l'application pour la liste complète.", app_url or None, 3)
             for key, e in rest:
-                state[key] = e["bar"]
+                mark(key, e)
         except Exception as ex:
             print(f"Échec du récapitulatif : {ex}", file=sys.stderr)
     return state, sent

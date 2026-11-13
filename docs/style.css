@@ -211,3 +211,17 @@ button { font: inherit; color: inherit; }
   background: var(--text); color: var(--bg); padding: 12px 14px; border-radius: 12px; font-size: 14px; box-shadow: 0 6px 24px rgba(0,0,0,.35);
 }
 @media (min-width: 720px) { .toast { left: 50%; right: auto; width: 520px; transform: translateX(-50%); } .positions { max-width: 720px; margin: 0 auto; } }
+
+/* Refonte : configurations en cours */
+.pline { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.pbig { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; min-width: 76px; }
+.pline .pbar { flex: 1; }
+.pbar i.mid { background: var(--amber); }
+.over { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--green-bg); color: var(--green); white-space: nowrap; }
+.pb { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.pb.fa { background: var(--green-bg); color: var(--green); }
+.pb.danger { background: var(--red-bg); color: var(--red); }
+.chip.danger { box-shadow: 0 0 0 1.5px var(--red); }
+.chip { flex-wrap: wrap; }
+
+.link.alt { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); margin-top: 8px; }

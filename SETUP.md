@@ -8,11 +8,11 @@ Il envoie les notifications sur votre téléphone (application ntfy) et met à j
 Le scanner cherche les configurations **en cours de validation**, c'est-à-dire la bougie Heikin Ashi (HA) en formation, avant sa clôture, avec le pourcentage de chances qu'elle valide la configuration.
 
 - **Fa** (🟢) : le **haut du corps** de la bougie HA dépasse la MM7 et la Tenkan. Une action apparaît en « Fa en cours » si elle n'est **pas déjà en Fa** et si la bougie en formation a au moins **30 %** de chances de clôturer en Fa. La mention « déjà au-dessus » indique que la bougie remplit la condition en ce moment même.
-- **S haussière** (🟩) : bougie HA **sans corps** (corps ≤ 10 % de sa hauteur) après **au moins 3 bougies HA baissières**. Elle apparaît en « S en cours » dès **30 %** de chances de clôturer ainsi.
+- **S haussière** (🟩) : bougie HA **sans corps** (corps ≤ 10 % de sa hauteur) après **au moins 3 bougies HA baissières**, dont les **3 dernières n'ont pas (ou peu) de mèche au-dessus du corps** (mèche ≤ 10 % de leur hauteur). Elle apparaît en « S en cours » dès **30 %** de chances de clôturer ainsi.
 - **Unités de temps pour les actions que vous ne détenez pas** : 4h, 1j, 1sem, 1mois. Le **1h n'est plus affiché ni notifié** pour elles.
 - **Application** : unités de temps en haut, puis seulement deux onglets, **Fa** et **S**, triés par probabilité décroissante. Une Fa déjà validée ne s'y affiche plus.
 - **Notifications (actions non détenues)** : une alerte quand la probabilité franchit 30 % (« 🟢 Fa1j 42% · AIR », « 🟩 S4h 35% · AIR »), et une seule autre si elle dépasse 60 %, pour la même bougie. Pas d'alerte de validation, pas de Fo, pas de S baissière.
-- **Vos positions (⭐)** : bouton « J'ai cette action » dans la fiche. L'action passe en haut (bloc « Mes positions ») avec **toutes les unités de temps, 1h comprise**. On y voit aussi **Fo** et **S baissière** (🟥 : sans corps après au moins 3 bougies vertes), validés et en cours. Seuils : **50 % pour le 1h**, 30 % pour les autres unités. Les notifications sont ⭐, en priorité haute (maximale pour Fo et S baissière), et vous gardez aussi les alertes de validation (Fa, Fo, S, toutes unités). Cela demande l'étape 7.
+- **Vos positions (⭐)** : bouton « J'ai cette action » dans la fiche. L'action passe en haut (bloc « Mes positions ») avec **toutes les unités de temps, 1h comprise**. On y voit aussi **Fo** et **S baissière** (🟥 : sans corps après au moins 3 bougies vertes, dont les 3 dernières sans mèche sous le corps), validés et en cours. Seuils : **50 % pour le 1h**, 30 % pour les autres unités. Les notifications sont ⭐, en priorité haute (maximale pour Fo et S baissière), et vous gardez aussi les alertes de validation (Fa, Fo, S, toutes unités). Cela demande l'étape 7.
 - Fa et Fo durent : un Fa reste en place jusqu'à l'apparition d'un Fo (le **bas du corps** sous la MM7 et la Tenkan), et inversement.
 - Toucher la notification ouvre la fiche de l'action, sur l'unité de temps de l'alerte. La fiche propose deux boutons graphique : **TradingView** (ouvre le graphique à l'unité de temps de l'onglet : 4h → 4 heures) et **Investing.com** (page de l'action ; l'unité se règle sur place, voir `docs/investing.json`).
 - Univers : une centaine de valeurs de Paris (`universe.csv`), filtrées sur la liquidité (au moins 1 M€ échangés par jour en moyenne).
@@ -80,6 +80,8 @@ Le jeton reste sur ce téléphone (stockage du navigateur) ; ne le partagez pas.
 | `NOTIFY_PENDING_HELD` | les 4 configurations, toutes unités | notifications « en cours » des actions détenues |
 | `NOTIFY_HELD` | les 4 configurations, toutes unités | notifications de validation (bougie clôturée) des actions détenues |
 | `S_MIN_RUN` | 3 | bougies HA de même sens minimales avant la bougie sans corps |
+| `S_WICK_MAX` | 0.10 | mèche tolérée sur les bougies précédant la S (haute pour S haussière, basse pour S baissière), en part de leur hauteur |
+| `S_WICK_BARS` | 3 | nombre de bougies juste avant la bougie sans corps qui doivent respecter cette règle |
 | `S_BODY_MAX` | 0.10 | « sans corps » : corps ≤ 10 % de la hauteur de la bougie |
 | `MIN_TURNOVER_EUR` | 1 000 000 | liquidité minimale (€ échangés par jour) |
 | `MAX_PUSH_PER_RUN` | 30 | au-delà, une notification récapitulative |

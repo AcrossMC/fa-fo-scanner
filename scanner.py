@@ -70,6 +70,8 @@ NOTIFY_HELD = {"Fa": _ALL, "Fo": _ALL, "S+": _ALL, "S-": _ALL}
 def threshold(tf, held):
     return PROB_MIN_HELD_1H if (held and tf == "1h") else PROB_MIN
 S_MIN_RUN = 3              # S : nombre minimal de bougies HA de même sens consécutives avant la bougie sans corps
+S_WICK_MAX = 0.10          # S : mèche tolérée sur les bougies précédentes (haute pour S haussière, basse pour S baissière), en part de leur hauteur
+S_WICK_BARS = 3            # S : nombre de bougies juste avant la bougie sans corps qui doivent respecter cette règle de mèche
 S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture|) <= 10 % de la hauteur de la bougie HA
 MAX_PUSH_PER_RUN = 30     # au-delà : une seule notification récapitulative (ntfy.sh limite ~250 messages/jour)
 MIN_BARS = 25              # historique minimal pour calculer correctement les indicateurs
@@ -295,6 +297,13 @@ def analyze_tf(df, tf, now_eff, rng):
     nobody = (rng_h > 0) & (np.abs(hac - hao) <= S_BODY_MAX * rng_h)
     bear = hac < hao
     bull = hac > hao
+    # bougies « propres » : baissière sans (ou peu de) mèche au-dessus du corps / haussière sans mèche sous le corps
+    bear_clean = bear & (rng_h > 0) & ((hah - np.maximum(hao, hac)) <= S_WICK_MAX * rng_h)
+    bull_clean = bull & (rng_h > 0) & ((np.minimum(hao, hac) - hal) <= S_WICK_MAX * rng_h)
+
+    def clean_before(k, arr):
+        """Les S_WICK_BARS bougies juste avant k respectent-elles la règle de mèche ?"""
+        return k >= S_WICK_BARS and bool(arr[k - S_WICK_BARS:k].all())
 
     def run(k, arr):
         n = 0
@@ -307,9 +316,9 @@ def analyze_tf(df, tf, now_eff, rng):
         if k < S_MIN_RUN or not nobody[k]:
             return None, 0
         nb, nu = run(k, bear), run(k, bull)
-        if nb >= S_MIN_RUN:
+        if nb >= S_MIN_RUN and clean_before(k, bear_clean):
             return "up", nb
-        if nu >= S_MIN_RUN:
+        if nu >= S_MIN_RUN and clean_before(k, bull_clean):
             return "down", nu
         return None, 0
 
@@ -345,7 +354,8 @@ def analyze_tf(df, tf, now_eff, rng):
         if np.isfinite(sigma) and sigma > 0:
             rem = remaining_fraction(idx[-1], tf, now_eff)
             p_fa, p_fo, p_su, p_sd = simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, rem, sigma, rng,
-                                              run(nc, bear), run(nc, bull))
+                                              run(nc, bear) if clean_before(nc, bear_clean) else 0,
+                                              run(nc, bull) if clean_before(nc, bull_clean) else 0)
             res["p_fa"], res["p_fo"] = round(p_fa, 2), round(p_fo, 2)
             res["p_s_up"], res["p_s_down"] = round(p_su, 2), round(p_sd, 2)
     return res
@@ -533,7 +543,7 @@ def build_notification(e, stock, app_url, held=False):
         elif kind == "Fo":
             cond = "bas du corps sous la MM7 et la Tenkan" if BODY_MODE == "edge" else "corps sous la MM7 et la Tenkan"
         else:
-            cond = f"bougie sans corps après {'des bougies baissières' if kind == 'S+' else 'des bougies vertes'}"
+            cond = f"bougie sans corps après {'des bougies baissières sans mèche haute' if kind == 'S+' else 'des bougies vertes sans mèche basse'}"
         what = f"EN COURS : {pct} % de chances que la bougie {lab} clôture en {name} ({cond})"
         if e.get("over"):
             what += "\nLa bougie remplit déjà la condition en ce moment."

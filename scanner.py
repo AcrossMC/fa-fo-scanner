@@ -6,8 +6,8 @@ S+  = « S haussière » : bougie HA sans corps (corps ≤ 10 % de sa hauteur) a
 S-  = « S baissière » : bougie HA sans corps après ≥ 3 bougies HA vertes (🟥)
 Actions détenues (variable HOLDINGS) : alertes étendues et notifications ⭐ en priorité haute.
 
-Fa  = « validé »     : le HAUT du corps d'une bougie Heikin Ashi clôturée dépasse la MM7 ET la Tenkan ; dure jusqu'au Fo
-Fo  = « invalidé »   : le BAS du corps d'une bougie Heikin Ashi clôturée passe sous la MM7 ET la Tenkan ; dure jusqu'au Fa
+Fa  = « validé »     : le HAUT du corps d'une bougie Heikin Ashi clôturée dépasse la MM7 (ascendante) ET la Tenkan ; dure jusqu'au Fo
+Fo  = « invalidé »   : le BAS du corps d'une bougie Heikin Ashi clôturée passe sous la MM7 (descendante) ET la Tenkan ; dure jusqu'au Fa
 En cours de validation : la bougie en formation n'est pas encore clôturée ; on estime la probabilité (en %)
                          qu'elle clôture avec la condition Fa remplie (simulation Monte-Carlo, voir simulate()).
 
@@ -43,12 +43,13 @@ import pandas as pd
 import requests
 
 # ------------------------------- Réglages --------------------------------
+MA_SLOPE = True           # Fa exige une MM7 ascendante, Fo une MM7 descendante (False : pas de condition de pente)
 MA_PERIOD = 7              # MM7
 TENKAN_PERIOD = 9          # Tenkan-sen (Ichimoku) = (plus haut 9 + plus bas 9) / 2
 BODY_MODE = "edge"         # "edge": Fa = HAUT du corps au-dessus des deux lignes, Fo = BAS du corps sous les deux lignes
                            # "full": corps ENTIER au-delà des deux lignes | "close": clôture seule
 INDICATORS_ON = "ha"       # "ha": MM7/Tenkan calculées sur les bougies Heikin Ashi | "normal": sur bougies classiques
-MIN_TURNOVER_EUR = 1_000_000   # liquidité : volume moyen échangé par jour (20 j) en euros
+MIN_TURNOVER_EUR = 100_000   # liquidité : volume moyen échangé par jour (20 j) en euros
 DATA_DELAY_MIN = 15        # Yahoo diffuse Euronext avec ~15 min de retard
 
 # --- Configurations « en cours de validation » (bougie en formation) ---
@@ -70,8 +71,9 @@ NOTIFY_HELD = {"Fa": _ALL, "Fo": _ALL, "S+": _ALL, "S-": _ALL}
 def threshold(tf, held):
     return PROB_MIN_HELD_1H if (held and tf == "1h") else PROB_MIN
 S_MIN_RUN = 3              # S : nombre minimal de bougies HA de même sens consécutives avant la bougie sans corps
-S_WICK_MAX = 0.10          # S : mèche tolérée sur les bougies précédentes (haute pour S haussière, basse pour S baissière), en part de leur hauteur
-S_WICK_BARS = 3            # S : nombre de bougies juste avant la bougie sans corps qui doivent respecter cette règle de mèche
+S_WICK_MAX = 0.10          # S : « sans mèche » = mèche <= 10 % de la hauteur de la bougie (haute pour S haussière, basse pour S baissière)
+AUTO_UNIVERSE = True       # True : à chaque passage, ajoute à universe.csv toutes les actions de Paris listées par Yahoo (puis filtre sur la liquidité)
+S_WICK_MIN = 2             # S : dans toute la série de bougies de même sens, au moins S_WICK_MIN sans mèche (haute pour S haussière, basse pour S baissière) ; les autres peuvent en avoir
 S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture|) <= 10 % de la hauteur de la bougie HA
 MAX_PUSH_PER_RUN = 30     # au-delà : une seule notification récapitulative (ntfy.sh limite ~250 messages/jour)
 MIN_BARS = 25              # historique minimal pour calculer correctement les indicateurs
@@ -145,6 +147,13 @@ def classify(hao, hac, mm, tk):
     valid = ~np.isnan(top)
     fa = valid & (up_ref > top)
     fo = valid & (dn_ref < bot)
+    if MA_SLOPE:                                   # MM7 ascendante pour Fa, descendante pour Fo
+        rising = np.zeros(len(mm), dtype=bool)
+        falling = np.zeros(len(mm), dtype=bool)
+        with np.errstate(invalid="ignore"):
+            rising[1:] = mm[1:] > mm[:-1]
+            falling[1:] = mm[1:] < mm[:-1]
+        fa, fo = fa & rising, fo & falling
     st = np.zeros(len(hac), dtype=int)
     st[fa & ~fo] = 1
     st[fo & ~fa] = -1
@@ -264,6 +273,9 @@ def simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, remaining, sigma, rng, 
     up_ref, dn_ref = body_refs(np.full(SIM_PATHS, hao[n]), hac_s)
     fa_raw = up_ref > np.maximum(mm, tk)
     fo_raw = dn_ref < np.minimum(mm, tk)
+    if MA_SLOPE:
+        mm_prev = sc[n - MA_PERIOD:n].sum() / MA_PERIOD       # MM7 de la dernière bougie clôturée
+        fa_raw, fo_raw = fa_raw & (mm > mm_prev), fo_raw & (mm < mm_prev)
     both = fa_raw & fo_raw
     green, red = hac_s > hao[n], hac_s < hao[n]
     fa, fo = (fa_raw & ~fo_raw) | (both & green), (fo_raw & ~fa_raw) | (both & red)
@@ -307,9 +319,9 @@ def analyze_tf(df, tf, now_eff, rng):
     bear_clean = bear & (rng_h > 0) & ((hah - np.maximum(hao, hac)) <= S_WICK_MAX * rng_h)
     bull_clean = bull & (rng_h > 0) & ((np.minimum(hao, hac) - hal) <= S_WICK_MAX * rng_h)
 
-    def clean_before(k, arr):
-        """Les S_WICK_BARS bougies juste avant k respectent-elles la règle de mèche ?"""
-        return k >= S_WICK_BARS and bool(arr[k - S_WICK_BARS:k].all())
+    def clean_count(k, n, arr):
+        """Parmi les n bougies de la série juste avant k, combien respectent la règle de mèche ?"""
+        return int(arr[k - n:k].sum()) if n > 0 else 0
 
     def run(k, arr):
         n = 0
@@ -322,9 +334,9 @@ def analyze_tf(df, tf, now_eff, rng):
         if k < S_MIN_RUN or not nobody[k]:
             return None, 0
         nb, nu = run(k, bear), run(k, bull)
-        if nb >= S_MIN_RUN and clean_before(k, bear_clean):
+        if nb >= S_MIN_RUN and clean_count(k, nb, bear_clean) >= S_WICK_MIN:
             return "up", nb
-        if nu >= S_MIN_RUN and clean_before(k, bull_clean):
+        if nu >= S_MIN_RUN and clean_count(k, nu, bull_clean) >= S_WICK_MIN:
             return "down", nu
         return None, 0
 
@@ -360,8 +372,8 @@ def analyze_tf(df, tf, now_eff, rng):
         if np.isfinite(sigma) and sigma > 0:
             rem = remaining_fraction(idx[-1], tf, now_eff)
             p_fa, p_fo, p_su, p_sd = simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, rem, sigma, rng,
-                                              run(nc, bear) if clean_before(nc, bear_clean) else 0,
-                                              run(nc, bull) if clean_before(nc, bull_clean) else 0)
+                                              run(nc, bear) if clean_count(nc, run(nc, bear), bear_clean) >= S_WICK_MIN else 0,
+                                              run(nc, bull) if clean_count(nc, run(nc, bull), bull_clean) >= S_WICK_MIN else 0)
             res["p_fa"], res["p_fo"] = round(p_fa, 2), round(p_fo, 2)
             res["p_s_up"], res["p_s_down"] = round(p_su, 2), round(p_sd, 2)
     return res
@@ -407,6 +419,28 @@ def load_universe():
     with open(UNIVERSE_FILE, encoding="utf-8") as f:
         rows = [r for r in csv.reader(f) if r and not r[0].startswith("#") and r[0] != "ticker"]
     return {r[0].strip(): (r[1].strip() if len(r) > 1 else r[0].strip()) for r in rows}
+
+
+def fetch_paris_listing(page=250, max_pages=8):
+    """Toutes les actions cotées à Paris selon le filtre de Yahoo (écran « exchange = PAR »). {ticker: nom}.
+    Renvoie {} en cas d'échec : on s'en tient alors à universe.csv."""
+    out = {}
+    try:
+        import yfinance as yf
+        q = yf.EquityQuery("eq", ["exchange", "PAR"])
+        for i in range(max_pages):
+            res = yf.screen(q, offset=i * page, size=page)
+            quotes = res.get("quotes", []) if isinstance(res, dict) else []
+            for it in quotes:
+                sym = str(it.get("symbol", ""))
+                if sym.endswith(".PA") and it.get("quoteType", "EQUITY") == "EQUITY":
+                    out[sym] = str(it.get("shortName") or it.get("longName") or sym[:-3])
+            total = res.get("total", 0) if isinstance(res, dict) else 0
+            if not quotes or (i + 1) * page >= total:
+                break
+    except Exception as e:
+        print(f"  liste Yahoo des actions de Paris indisponible ({e}) : universe.csv seul.", file=sys.stderr)
+    return out
 
 
 # ===================================== Scan =====================================
@@ -545,11 +579,11 @@ def build_notification(e, stock, app_url, held=False):
         pct = int(round(e["p"] * 100))
         title = f"{icon} {name}{lab} {pct}% · {short(e['ticker'])}"
         if kind == "Fa":
-            cond = "haut du corps au-dessus de la MM7 et de la Tenkan" if BODY_MODE == "edge" else "corps au-dessus de la MM7 et de la Tenkan"
+            cond = "haut du corps au-dessus de la MM7 (ascendante) et de la Tenkan" if BODY_MODE == "edge" else "corps au-dessus de la MM7 et de la Tenkan"
         elif kind == "Fo":
-            cond = "bas du corps sous la MM7 et la Tenkan" if BODY_MODE == "edge" else "corps sous la MM7 et la Tenkan"
+            cond = "bas du corps sous la MM7 (descendante) et la Tenkan" if BODY_MODE == "edge" else "corps sous la MM7 et la Tenkan"
         else:
-            cond = f"bougie sans corps après {'des bougies baissières sans mèche haute' if kind == 'S+' else 'des bougies vertes sans mèche basse'}"
+            cond = f"bougie sans corps après {'des bougies baissières, dont au moins 2 sans mèche haute' if kind == 'S+' else 'des bougies vertes, dont au moins 2 sans mèche basse'}"
         what = f"EN COURS : {pct} % de chances que la bougie {lab} clôture en {name} ({cond})"
         if e.get("over"):
             what += "\nLa bougie remplit déjà la condition en ce moment."
@@ -654,6 +688,32 @@ def parse_holdings(raw):
     return frozenset(out)
 
 
+def choose_mode(now, holdings, env=None):
+    """« full » : toutes les actions (toutes les 30 min) | « held » : seulement vos positions (les 15 min intermédiaires).
+    Complet aussi : lancement manuel, aucune position, passage de clôture (>= 17h50), ou SCAN_MODE=full/held."""
+    env = os.environ if env is None else env
+    forced = env.get("SCAN_MODE", "").strip().lower()
+    if forced in ("full", "held"):
+        return forced
+    if env.get("GITHUB_EVENT_NAME") == "workflow_dispatch" or not holdings:
+        return "full"
+    if now.hour >= 17 and now.minute >= 50:
+        return "full"
+    return "full" if (now.minute // 15) % 2 == 0 else "held"
+
+
+def merge_partial(prev, data):
+    """Passage « positions seulement » : met à jour les actions détenues dans le data.json existant, le reste est conservé."""
+    merged = dict(prev)
+    merged["stocks"] = {**prev.get("stocks", {}), **data["stocks"]}
+    meta = dict(prev.get("meta", {}))
+    meta["updated"] = data["meta"]["updated"]
+    meta["held_updated"] = data["meta"]["updated"]
+    meta.setdefault("full_updated", prev.get("meta", {}).get("updated"))
+    merged["meta"] = meta
+    return merged
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-push", action="store_true", help="n'envoie rien et ne touche pas à state.json")
@@ -673,14 +733,38 @@ def main():
         return
 
     now = pd.Timestamp.now(tz=PARIS)
-    universe = load_universe()
-    data, events = scan(universe, download, now, args.min_turnover, holdings)
+    mode = choose_mode(now, holdings)
+    prev = None
+    if mode == "held":
+        try:
+            prev = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+            if not prev.get("stocks"):
+                prev = None
+        except Exception:
+            prev = None
+        if prev is None:
+            mode = "full"
+    if mode == "held":
+        print(f"Passage rapide : {len(holdings)} position(s) seulement.")
+        data, events = scan({}, download, now, args.min_turnover, holdings)
+        if data["stocks"]:
+            data = merge_partial(prev, data)
+        else:
+            sys.exit("Aucune donnée pour les positions : data.json non modifié.")
+    else:
+        universe = load_universe()
+        if AUTO_UNIVERSE:
+            listed = fetch_paris_listing()
+            added = {t: n for t, n in listed.items() if t not in universe}
+            universe.update(added)
+            print(f"Liste Yahoo des actions de Paris : {len(listed)} valeurs, {len(added)} ajoutées à universe.csv ({len(universe)} au total).")
+        data, events = scan(universe, download, now, args.min_turnover, holdings)
 
     m = data["meta"]
-    print(f"{m['analysed']} actions analysées sur {m['universe']} "
-          f"({m['illiquid']} trop peu liquides, {len(m['no_data'])} sans données).")
-    if m["no_data"]:
-        print("Sans données (ticker à corriger dans universe.csv ?) : " + ", ".join(m["no_data"]), file=sys.stderr)
+    print(f"{m.get('analysed', len(data['stocks']))} actions analysées sur {m.get('universe', '?')} "
+          f"({m.get('illiquid', '?')} trop peu liquides, {len(m.get('no_data', []))} sans données).")
+    if m.get("no_data") and mode == "full":
+        print(f"Sans données ({len(m['no_data'])}) : " + ", ".join(m["no_data"][:60]) + (" …" if len(m["no_data"]) > 60 else ""), file=sys.stderr)
     if not data["stocks"]:
         sys.exit("Aucune donnée exploitable : data.json non modifié.")
 

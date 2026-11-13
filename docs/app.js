@@ -166,7 +166,7 @@
     const m = data.meta;
     $("foot").innerHTML = `${m.analysed} actions analysées sur ${m.universe} (liquidité minimale requise). Cours différés d'environ ${m.delay_min} min.<br>`
       + `Fa en cours : la bougie Heikin Ashi en formation peut encore clôturer avec le haut du corps au-dessus de la MM7 et de la Tenkan ; ${pct(m.prob_min ?? 0.3)} minimum, hors actions déjà en Fa. `
-      + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières. `
+      + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières sans (ou presque sans) mèche haute. `
       + `Pour vos positions ⭐ : toutes les unités de temps (1h comprise, seuil ${pct(m.prob_min_held_1h ?? 0.5)}), avec Fo et ${sq("down")} S baissière. `
       + `Le pourcentage est une estimation statistique, pas une prévision. Information indicative, pas un conseil en investissement.`;
   }

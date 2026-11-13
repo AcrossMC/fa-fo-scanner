@@ -225,3 +225,7 @@ button { font: inherit; color: inherit; }
 .chip { flex-wrap: wrap; }
 
 .link.alt { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); margin-top: 8px; }
+
+.card.addcard { display: flex; flex-direction: column; gap: 10px; cursor: default; }
+.card.addcard .posbtn { width: 100%; }
+.small { font-size: 12px; }

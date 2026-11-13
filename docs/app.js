@@ -112,17 +112,42 @@
       return;
     }
     const q = query.trim().toLowerCase();
+    if (q) { renderSearch(q); return; }          // recherche : toutes les actions suivies, pas seulement celles « en cours »
     let rows = rowsFor(tf, st);
-    if (q) rows = rows.filter(([t, s]) => t.toLowerCase().includes(q) || s.name.toLowerCase().includes(q));
     if (!rows.length) {
       const msg = { fa: "Aucune Fa en cours de validation", s: "Aucune S haussière en cours de validation" }[st];
-      list.innerHTML = `<div class="empty">${msg} en ${esc(TF_NAME[tf])}${q ? " pour cette recherche" : ""}.</div>`;
+      list.innerHTML = `<div class="empty">${msg} en ${esc(TF_NAME[tf])}.</div>`;
       return;
     }
     list.innerHTML = LEGEND + rows.map(([t, s, r, p]) => card(t, s, r, p)).join("");
   }
 
-  // ---- Bloc « Mes positions » (toujours en haut) : toutes les unités de temps, danger (Fo, S baissière) comprises ----
+  // ---- Recherche : retrouver n'importe quelle action suivie, ou ajouter une action absente de la liste comme position ----
+  function candidateTicker(q) {
+    const t = q.trim().toUpperCase().replace(/\s+/g, "");
+    if (!/^[A-Z0-9][A-Z0-9\-]{0,9}(\.[A-Z]{1,3})?$/.test(t)) return null;
+    if (t.includes(".") && !t.endsWith(".PA")) return null;   // le scanner suit uniquement Euronext Paris (horaires 9h-17h35)
+    return t.includes(".") ? t : t + ".PA";                 // sans suffixe : action de Paris
+  }
+  function renderSearch(q) {
+    const hits = Object.entries(data.stocks)
+      .filter(([t, s]) => t.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
+      .sort((a, b) => held.has(b[0]) - held.has(a[0]) || a[0].localeCompare(b[0])).slice(0, 30);
+    let html = hits.map(([t, s]) => `<button class="card${held.has(t) ? " held" : ""}" data-t="${esc(t)}">
+      <div class="row"><span class="left">${held.has(t) ? '<span class="star">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
+      <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div></button>`).join("");
+    const cand = candidateTicker(query);
+    if (cand && !data.stocks[cand]) {
+      html += held.has(cand)
+        ? `<div class="card held nodata"><span class="tick">${esc(short(cand))}</span><span class="muted"> · en position, analyse au prochain passage (15 min au plus)</span></div>`
+        : `<div class="card addcard"><div><b>${esc(cand)}</b> n'est pas dans la liste suivie.</div>
+           <button class="posbtn" data-add="${esc(cand)}">☆ J'ai cette action : l'ajouter à mes positions</button>
+           <div class="muted small">Code Yahoo Finance d'une action de Paris (ex. ALCLS.PA). Sans suffixe, « .PA » est ajouté. Analyse dès le prochain passage, comme les autres actions.</div></div>`;
+    }
+    list.innerHTML = html || `<div class="empty">Aucune action ne correspond à « ${esc(query.trim())} ».</div>`;
+  }
+
+  // ---- Bloc « Mes positions' (toujours en haut) : toutes les unités de temps, danger (Fo, S baissière) comprises ----
   function posChips(t, s) {
     return TFS.map(([k, l]) => {
       const r = s.tf[k];
@@ -145,7 +170,7 @@
     const open = el.dataset.open !== "0";
     const cards = [...held].sort().map((t) => {
       const s = data.stocks[t];
-      if (!s) return `<div class="card held nodata"><span class="tick">${esc(short(t))}</span><span class="muted"> · pas de données</span></div>`;
+      if (!s) return `<div class="card held nodata"><span class="tick">${esc(short(t))}</span><span class="muted"> · analyse au prochain passage (15 min au plus)</span></div>`;
       return `<button class="card held pos" data-t="${esc(t)}">
         <div class="row"><span class="left"><span class="star">⭐</span><span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
         <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
@@ -165,8 +190,8 @@
     $("updated").textContent = `Analyse du ${day} à ${hm}` + (ageMin > 90 ? " (marché fermé ou données anciennes)" : "");
     const m = data.meta;
     $("foot").innerHTML = `${m.analysed} actions analysées sur ${m.universe} (liquidité minimale requise). Cours différés d'environ ${m.delay_min} min.<br>`
-      + `Fa en cours : la bougie Heikin Ashi en formation peut encore clôturer avec le haut du corps au-dessus de la MM7 et de la Tenkan ; ${pct(m.prob_min ?? 0.3)} minimum, hors actions déjà en Fa. `
-      + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières sans (ou presque sans) mèche haute. `
+      + `Fa en cours : la bougie Heikin Ashi en formation peut encore clôturer avec le haut du corps au-dessus de la Tenkan et d'une MM7 ascendante ; ${pct(m.prob_min ?? 0.3)} minimum, hors actions déjà en Fa. `
+      + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières dont au moins 2 sans mèche haute. `
       + `Pour vos positions ⭐ : toutes les unités de temps (1h comprise, seuil ${pct(m.prob_min_held_1h ?? 0.5)}), avec Fo et ${sq("down")} S baissière. `
       + `Le pourcentage est une estimation statistique, pas une prévision. Information indicative, pas un conseil en investissement.`;
   }
@@ -220,7 +245,7 @@
       <div class="tf-table">${rows}</div>
       <a class="link" href="${tv}" target="_blank" rel="noopener">Graphique ${esc(TF_NAME[tf])} · TradingView</a>
       <a class="link alt" href="${inv}" target="_blank" rel="noopener">${slug ? "Page Investing.com" : "Chercher sur Investing.com"} (régler ${esc(TF_NAME[tf])} sur place)</a>
-      <p class="note">Fa = démarre quand le haut du corps Heikin Ashi clôturé dépasse la MM7 et la Tenkan, dure jusqu'au Fo · Fo = le bas du corps passe sous les deux · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
+      <p class="note">Fa = démarre quand le haut du corps Heikin Ashi clôturé dépasse la Tenkan et une MM7 ascendante, dure jusqu'au Fo · Fo = le bas du corps passe sous les deux · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
     showSheet();
     if (!location.hash.slice(1).toUpperCase().startsWith(t)) history.replaceState(null, "", "#" + t);
   }
@@ -271,7 +296,7 @@
   async function toggleHeld(t) {
     const on = !held.has(t);
     on ? held.add(t) : held.delete(t);
-    saveHeld(); render(); openSheet(t);
+    saveHeld(); render(); if (data && data.stocks[t]) openSheet(t);
     if (!canSync()) { toast("Enregistrée sur ce téléphone. Sans jeton GitHub (réglages ⚙), pas de notifications spéciales."); return; }
     try {
       const remote = (await readRemote()) || new Set();
@@ -347,7 +372,11 @@
     const b = e.target.closest("button[data-st]"); if (!b) return;
     st = b.dataset.st; store("st", st); render();
   });
-  list.addEventListener("click", (e) => { const c = e.target.closest(".card[data-t]"); if (c) openSheet(c.dataset.t); });
+  list.addEventListener("click", (e) => {
+    const add = e.target.closest("[data-add]");
+    if (add) { toggleHeld(add.dataset.add); return; }
+    const c = e.target.closest(".card[data-t]"); if (c) openSheet(c.dataset.t);
+  });
   $("positions").addEventListener("click", (e) => {
     if (e.target.closest("#posToggle")) {
       const el = $("positions"); el.dataset.open = el.dataset.open === "0" ? "1" : "0"; renderPositions(); return;

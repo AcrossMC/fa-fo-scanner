@@ -71,6 +71,29 @@ def test_heikin_ashi():
     print("OK heikin_ashi")
 
 
+def test_body_modes():
+    mm, tk = np.array([11.0] * 4), np.array([11.5] * 4)
+    hao = np.array([10.0, 11.8, 9.0, 11.2]); hac = np.array([12.0, 12.5, 10.5, 11.4])   # corps : 10-12 | 11.8-12.5 | 9-10.5 | 11.2-11.4
+    old = sc.BODY_MODE
+    sc.BODY_MODE = "edge"
+    assert sc.classify(hao, hac, mm, tk).tolist() == [0, 1, -1, 0]     # 1 : couvre toute la zone => aucun signal
+    sc.BODY_MODE = "full"
+    assert sc.classify(hao, hac, mm, tk).tolist() == [0, 1, -1, 0]
+    hao2 = np.array([11.2, 10.8]); hac2 = np.array([12.0, 11.3])
+    sc.BODY_MODE = "edge"
+    assert sc.classify(hao2, hac2, mm[:2], tk[:2]).tolist() == [1, -1]  # haut 12 > 11.5 => Fa ; bas 10.8 < 11 => Fo
+    sc.BODY_MODE = "full"
+    assert sc.classify(hao2, hac2, mm[:2], tk[:2]).tolist() == [0, 0]   # mode strict : le corps entier doit être au-delà
+    sc.BODY_MODE = old
+    print("OK body_modes")
+
+
+def test_persistence():
+    st = sc.persist(np.array([0, 1, 0, 0, -1, 0, 1, 0]))
+    assert st.tolist() == [0, 1, 1, 1, -1, -1, 1, 1]               # Fa dure jusqu'au Fo, Fo jusqu'au Fa suivant
+    print("OK persistence")
+
+
 def test_lines_and_classify():
     n = 40
     c = np.linspace(100, 140, n); o = c - 1; h = c + 0.5; l = o - 0.5
@@ -183,16 +206,17 @@ def test_event_detection():
 def test_notify_filter():
     ev = lambda kind: [{"ticker": "AIR.PA", "tf": tf, "kind": kind, "bar": "2026-11-11T10:00:00+01:00"} for tf in sc.TF_ORDER]
     tfs = lambda kind, held=frozenset(): sorted(e["tf"] for _, e in sc.select_new(ev(kind), {}, held))
-    # actions non détenues
-    assert tfs("Fa") == ["1d", "1mo", "1w"] and tfs("Fo") == ["1d", "1mo", "1w"]
-    assert tfs("S+") == ["1d", "1mo", "1w", "4h"] and tfs("S-") == []
+    # actions non détenues : plus aucune notification de VALIDATION (seulement « en cours », voir test_pending)
+    assert tfs("Fa") == tfs("Fo") == tfs("S+") == tfs("S-") == []
     # actions détenues : Fa, Fo, S+ et S- sur toutes les unités de temps
     h = frozenset({"AIR.PA"})
     assert tfs("Fa", h) == tfs("Fo", h) == tfs("S+", h) == tfs("S-", h) == sorted(sc.TF_ORDER)
     # les positions passent avant les autres actions
     mix = [{"ticker": "MC.PA", "tf": "1mo", "kind": "Fa", "bar": "2026-11-11T10:00:00+01:00"},
            {"ticker": "AIR.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-11T10:00:00+01:00"}]
-    assert [e["ticker"] for _, e in sc.select_new(mix, {}, h)] == ["AIR.PA", "MC.PA"]
+    assert [e["ticker"] for _, e in sc.select_new(mix, {}, h)] == ["AIR.PA"]           # MC.PA non détenue : plus de notification de validation
+    mix_p = [{"ticker": "MC.PA", "tf": "1mo", "kind": "Fa~", "bar": "b", "p": 0.5}, {"ticker": "AIR.PA", "tf": "1d", "kind": "Fa~", "bar": "b", "p": 0.5}]
+    assert [e["ticker"] for _, e in sc.select_new(mix_p, {}, h)] == ["AIR.PA", "MC.PA"]   # les positions passent avant
     assert sc.parse_holdings("air.pa, MC;OR.PA\n") == frozenset({"AIR.PA", "MC.PA", "OR.PA"}) and sc.parse_holdings("") == frozenset()
     print("OK notify_filter")
 
@@ -240,6 +264,16 @@ def test_s_config():
 
 
 def test_notifications():
+    legacy = sc.NOTIFY
+    sc.NOTIFY = {"Fa": ["1d", "1w", "1mo"], "Fo": ["1d", "1w", "1mo"], "S+": ["4h", "1d", "1w", "1mo"], "S-": []}   # mécanique des alertes de validation
+    try:
+        _notifications_body()
+    finally:
+        sc.NOTIFY = legacy
+    print("OK notifications")
+
+
+def _notifications_body():
     events = [
         {"ticker": "AIR.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-11T00:00:00+01:00"},
         {"ticker": "AIR.PA", "tf": "1d", "kind": "Fo", "bar": "2026-11-10T00:00:00+01:00"},
@@ -259,7 +293,7 @@ def test_notifications():
     ev2 = events + [{"ticker": "AIR.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-12T00:00:00+01:00"}]
     state3, n3 = sc.deliver(ev2, data, state2, push, url, seeding=False)
     assert n3 == 1 and sent[0][0] == "🟢 Fa1j · AIR" and sent[0][3] == 3, sent
-    assert sent[0][2] == "https://x.github.io/r/#AIR.PA"
+    assert sent[0][2] == "https://x.github.io/r/#AIR.PA@1d"
     assert "1h ✅" in sent[0][1] and "1j 🔻" in sent[0][1] and "Airbus" in sent[0][1] and "POSITION" not in sent[0][1]
     _, n4 = sc.deliver(ev2, data, state3, push, url, seeding=False)
     assert n4 == 0
@@ -281,7 +315,53 @@ def test_notifications():
     sent.clear()
     _, n5 = sc.deliver(many, data_many, {}, push, "https://x/", seeding=False)
     assert n5 == sc.MAX_PUSH_PER_RUN and len(sent) == sc.MAX_PUSH_PER_RUN + 1 and "7 autres" in sent[-1][0]
-    print("OK notifications")
+
+
+def test_pending():
+    bar = "2026-11-12T10:00:00+01:00"
+    mk = lambda tf, kind, p, t="AIR.PA": {"ticker": t, "tf": tf, "kind": kind, "bar": bar, "p": p, "over": False}
+    h = frozenset({"AIR.PA"})
+    sel = lambda evs, state=None, held=frozenset(): [(k, e) for k, e in sc.select_new(evs, state or {}, held)]
+    # non détenue : Fa~ et S+~ en 4h/1j/1sem/1mois seulement ; jamais le 1h, jamais Fo~ ni S-~
+    evs = [mk(tf, k, 0.4) for tf in sc.TF_ORDER for k in ("Fa~", "Fo~", "S+~", "S-~")]
+    got = sorted((e["tf"], e["kind"]) for _, e in sel(evs))
+    assert got == sorted((tf, k) for tf in ("4h", "1d", "1w", "1mo") for k in ("Fa~", "S+~")), got
+    # détenue : tout, 1h compris
+    assert len(sel(evs, held=h)) == 5 * 4
+    # seuils : 30 % (autres unités), 50 % pour le 1h des actions détenues
+    assert sc.threshold("4h", False) == 0.30 and sc.threshold("1h", True) == 0.50 and sc.threshold("1d", True) == 0.30
+    # une alerte au seuil, une 2e au-dessus de 60 %, puis plus rien pour la même bougie
+    sent = []
+    push = lambda t, m, c, priority=3: sent.append((t, m, c, priority))
+    data = {"stocks": {"AIR.PA": {"name": "Airbus", "price": 171.5, "chg": 1.2, "tf": {"4h": {"state": "none"}, "1d": {"state": "fo"}}}}}
+    st, n = sc.deliver([mk("1d", "Fa~", 0.42)], data, {}, push, "https://x/", False)
+    assert n == 1 and sent[0][0] == "🟢 Fa1j 42% · AIR" and sent[0][3] == 3 and "EN COURS" in sent[0][1], sent
+    st, n = sc.deliver([mk("1d", "Fa~", 0.47)], data, st, push, "https://x/", False)
+    assert n == 0                                                       # même niveau : pas de répétition
+    st, n = sc.deliver([mk("1d", "Fa~", 0.65)], data, st, push, "https://x/", False)
+    assert n == 1 and sent[1][0] == "🟢 Fa1j 65% · AIR" and "supérieure à 60" in sent[1][1] and sent[1][3] == 4
+    st, n = sc.deliver([mk("1d", "Fa~", 0.35)], data, st, push, "https://x/", False)
+    assert n == 0                                                       # la probabilité redescend : rien
+    # nouvelle bougie : nouvelle alerte possible
+    e2 = mk("1d", "Fa~", 0.4); e2["bar"] = "2026-11-13T10:00:00+01:00"
+    st, n = sc.deliver([e2], data, st, push, "https://x/", False)
+    assert n == 1
+    # S haussière en cours et alertes de danger détenues
+    sent.clear()
+    st, n = sc.deliver([mk("4h", "S+~", 0.35, "AIR.PA")], data, {}, push, "https://x/", False)
+    assert sent[0][0] == "🟩 S4h 35% · AIR"
+    sent.clear()
+    sc.deliver([mk("1d", "Fo~", 0.55), mk("4h", "S-~", 0.5)], data, {}, push, "https://x/", False, holdings=h)
+    assert {t: p for t, _, _, p in sent} == {"⭐ 🔴 Fo1j 55% · AIR": 5, "⭐ 🟥 S4h 50% · AIR": 5}, sent
+    assert all(m.startswith("POSITION DÉTENUE") for _, m, _, _ in sent)
+    # premier passage : mémorisé sans notifier
+    sent.clear()
+    st, n = sc.deliver([mk("1d", "Fa~", 0.5)], data, {}, push, "https://x/", True)
+    assert n == 0 and not sent and st
+    # state.json : les vieilles alertes « en cours » sont purgées
+    old = {"AIR.PA|1d|Fa~|2020-01-01T10:00:00+01:00": 1, "AIR.PA|1d|Fa": "2026-11-11T00:00:00+01:00"}
+    assert list(sc.prune_state(old)) == ["AIR.PA|1d|Fa"]
+    print("OK pending")
 
 
 def test_holdings_always_scanned():
@@ -322,7 +402,10 @@ def test_end_to_end(tmp: Path):
                     assert r["p_fa"] is None
                 counts[tf]["fa"] += r["state"] == "fa"; counts[tf]["fo"] += r["state"] == "fo"
                 counts[tf]["pending"] += bool(r["forming"] and r["state"] != "fa" and (r["p_fa"] or 0) >= sc.PROB_MIN)
-        print(f"  [{label}] événements={len(events)}")
+        pend_ev = [e for e in events if e["kind"].endswith("~")]
+        assert all(e["p"] >= sc.PROB_MIN for e in pend_ev) and all(e["kind"] in ("Fa~", "Fo~", "S+~", "S-~") for e in pend_ev)
+        assert not any(e["kind"] == "Fa~" and data["stocks"][e["ticker"]]["tf"][e["tf"]]["state"] == "fa" for e in pend_ev)
+        print(f"  [{label}] événements={len(events)} dont en cours={len(pend_ev)}")
         for tf in sc.TF_ORDER:
             print(f"     {tf:>4}: {counts[tf]}")
         if label.startswith("séance"):
@@ -341,6 +424,8 @@ if __name__ == "__main__":
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp")
     out.mkdir(parents=True, exist_ok=True)
     test_heikin_ashi()
+    test_body_modes()
+    test_persistence()
     test_lines_and_classify()
     test_calendar()
     test_aggregate()
@@ -349,6 +434,7 @@ if __name__ == "__main__":
     test_notify_filter()
     test_s_config()
     test_notifications()
+    test_pending()
     test_holdings_always_scanned()
     test_end_to_end(out)
     print("\nTOUS LES TESTS PASSENT")

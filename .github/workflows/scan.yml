@@ -2,7 +2,9 @@ name: Scan Fa/Fo
 
 on:
   schedule:
+    # Toutes les 15 min de 7h à 16h45 UTC (= séance de Paris en heure d'été comme d'hiver), du lundi au vendredi
     - cron: "*/15 7-16 * * 1-5"
+    # Passage supplémentaire après la clôture (17h55 Paris) pour valider les bougies jour / semaine / mois
     - cron: "55 15,16 * * 1-5"
   workflow_dispatch:
 

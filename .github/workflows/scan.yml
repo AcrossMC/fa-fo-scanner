@@ -40,10 +40,18 @@ jobs:
         run: |
           git config user.name "fa-scanner"
           git config user.email "fa-scanner@users.noreply.github.com"
-          git add docs/data.json
-          if [ -f state.json ]; then git add state.json; fi
-          if ! git diff --cached --quiet; then
-            git commit -m "scan $(date -u +%Y-%m-%d_%H:%M)"
-            git pull --rebase -q
-            git push
-          fi
+          mkdir -p /tmp/out
+          cp docs/data.json /tmp/out/data.json
+          if [ -f state.json ]; then cp state.json /tmp/out/state.json; fi
+          for i in 1 2 3; do
+            git fetch -q origin main
+            git reset -q --hard origin/main          # repart de la version en ligne : aucun conflit possible
+            cp /tmp/out/data.json docs/data.json
+            if [ -f /tmp/out/state.json ]; then cp /tmp/out/state.json state.json; fi
+            git add docs/data.json
+            if [ -f state.json ]; then git add state.json; fi
+            if git diff --cached --quiet; then break; fi
+            git commit -q -m "scan $(date -u +%Y-%m-%d_%H:%M)"
+            if git push -q; then break; fi
+            sleep 5
+          done

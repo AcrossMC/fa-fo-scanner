@@ -74,9 +74,10 @@ def test_heikin_ashi():
 def test_body_modes():
     mm, tk = np.array([11.0] * 4), np.array([11.5] * 4)
     hao = np.array([10.0, 11.8, 9.0, 11.2]); hac = np.array([12.0, 12.5, 10.5, 11.4])   # corps : 10-12 | 11.8-12.5 | 9-10.5 | 11.2-11.4
-    old = sc.BODY_MODE
+    old, old_slope = sc.BODY_MODE, sc.MA_SLOPE
+    sc.MA_SLOPE = False                                                  # la pente de la MM7 est testée dans test_slope
     sc.BODY_MODE = "edge"
-    assert sc.classify(hao, hac, mm, tk).tolist() == [0, 1, -1, 0]     # 1 : couvre toute la zone => aucun signal
+    assert sc.classify(hao, hac, mm, tk).tolist() == [1, 1, -1, 0]     # 0 : corps vert qui couvre toute la zone => la couleur tranche (Fa)
     sc.BODY_MODE = "full"
     assert sc.classify(hao, hac, mm, tk).tolist() == [0, 1, -1, 0]
     hao2 = np.array([11.2, 10.8]); hac2 = np.array([12.0, 11.3])
@@ -84,8 +85,22 @@ def test_body_modes():
     assert sc.classify(hao2, hac2, mm[:2], tk[:2]).tolist() == [1, -1]  # haut 12 > 11.5 => Fa ; bas 10.8 < 11 => Fo
     sc.BODY_MODE = "full"
     assert sc.classify(hao2, hac2, mm[:2], tk[:2]).tolist() == [0, 0]   # mode strict : le corps entier doit être au-delà
-    sc.BODY_MODE = old
+    sc.BODY_MODE, sc.MA_SLOPE = old, old_slope
     print("OK body_modes")
+
+
+def test_slope():
+    tk = np.array([11.5] * 4)
+    hao = np.array([11.8, 11.8, 10.0, 10.0]); hac = np.array([12.5, 12.5, 10.5, 10.5])     # 0-1 : corps au-dessus des lignes | 2-3 : en dessous
+    mm_up = np.array([10.8, 11.0, 11.2, 11.3]); mm_dn = np.array([11.9, 11.7, 11.4, 11.2])
+    assert sc.MA_SLOPE
+    # corps haut > MM7 et Tenkan : Fa seulement si la MM7 monte ; bas du corps < MM7 et Tenkan : Fo seulement si elle descend
+    assert sc.classify(hao, hac, mm_up, tk).tolist() == [0, 1, 0, 0]                       # [0] : pas de bougie précédente ; [2],[3] : MM7 montante => pas de Fo
+    assert sc.classify(hao, hac, mm_dn, tk).tolist() == [0, 0, -1, -1]                     # MM7 descendante : pas de Fa
+    assert sc.classify(hao, hac, np.array([11.0] * 4), tk).tolist() == [0, 0, 0, 0]       # MM7 plate : ni l'un ni l'autre
+    sc.MA_SLOPE = False
+    sc.MA_SLOPE = True
+    print("OK slope")
 
 
 def test_persistence():
@@ -252,21 +267,20 @@ def test_s_config():
     sc.S_MIN_RUN = 99
     assert not sc.analyze_tf(crafted("down"), "1d", after, rng)["s"]["active"]             # seuil respecté
     sc.S_MIN_RUN = old
-    # règle des mèches : les 3 bougies juste avant la bougie sans corps doivent avoir peu de mèche haute (S+) / basse (S-)
-    def wick_df(direction, bad_back=None, n=30):
+    # règle des mèches : dans TOUTE la série de bougies de même sens, au moins 2 sans mèche (haute pour S+, basse pour S-)
+    def wick_df(direction, clean_idx, n=30):
         """Bougies déjà « HA » (heikin_ashi neutralisé) : n bougies de même sens puis une bougie sans corps.
-        bad_back = k : la k-ième bougie avant la bougie sans corps reçoit une grande mèche du côté testé."""
+        Seules les bougies d'indices clean_idx sont sans mèche ; les autres ont une grande mèche du côté testé."""
         o, h, l, c = [], [], [], []
         for i in range(n):
             if direction == "down":
                 op, cl = 200 - i, 199 - i
                 hi, lo = op, cl - 0.05
+                if i not in clean_idx: hi = op + 0.6
             else:
                 op, cl = 100 + i, 101 + i
                 hi, lo = cl + 0.05, op
-            if bad_back is not None and i == n - bad_back:
-                if direction == "down": hi = op + 0.6
-                else: lo = op - 0.6
+                if i not in clean_idx: lo = op - 0.6
             o.append(op); h.append(hi); l.append(lo); c.append(cl)
         ref = c[-1]
         o.append(ref); c.append(ref); h.append(ref + 0.5); l.append(ref - 0.5)
@@ -277,15 +291,14 @@ def test_s_config():
     sc.heikin_ashi = lambda o, h, l, c: (o, h, l, c)
     try:
         for direction, sd in (("down", "up"), ("up", "down")):
-            ok = sc.analyze_tf(wick_df(direction), "1d", after, rng)["s"]
-            assert ok["active"] and ok["dir"] == sd, (direction, ok)
-            for back in (1, 2, 3):                                              # mèche sur l'une des 3 dernières : pas de S
-                assert not sc.analyze_tf(wick_df(direction, bad_back=back), "1d", after, rng)["s"]["active"], (direction, back)
-            assert sc.analyze_tf(wick_df(direction, bad_back=6), "1d", after, rng)["s"]["active"]   # bougie plus ancienne : libre
-        old_w = sc.S_WICK_MAX
-        sc.S_WICK_MAX = 1.0                                                      # tolérance maximale : plus de contrainte
-        assert sc.analyze_tf(wick_df("down", bad_back=1), "1d", after, rng)["s"]["active"]
-        sc.S_WICK_MAX = old_w
+            act = lambda ci: sc.analyze_tf(wick_df(direction, ci), "1d", after, rng)["s"]
+            assert act(set(range(30)))["active"] and act(set(range(30)))["dir"] == sd
+            assert act({0, 1})["active"] and act({3, 8})["active"] and act({28, 29})["active"]   # 2 sans mèche, n'importe où dans la série
+            assert not act({5})["active"] and not act(set())["active"]                              # moins de 2 : pas de S
+        old_w = sc.S_WICK_MIN
+        sc.S_WICK_MIN = 0
+        assert sc.analyze_tf(wick_df("down", set()), "1d", after, rng)["s"]["active"]            # sans contrainte
+        sc.S_WICK_MIN = old_w
     finally:
         sc.heikin_ashi = real_ha
     # notifications S : carrés vert / rouge
@@ -400,6 +413,43 @@ def test_pending():
     print("OK pending")
 
 
+def test_auto_universe():
+    import yfinance as yf
+    real = yf.screen
+    pages = [{"total": 3, "quotes": [{"symbol": "AAA.PA", "shortName": "Aaa", "quoteType": "EQUITY"}, {"symbol": "BBB.AS", "quoteType": "EQUITY"}]},
+             {"total": 3, "quotes": [{"symbol": "CCC.PA", "shortName": "Ccc", "quoteType": "ETF"}, {"symbol": "DDD.PA", "quoteType": "EQUITY"}]}]
+    calls = []
+    yf.screen = lambda q, offset=0, size=250, **k: (calls.append(offset) or pages[min(len(calls) - 1, 1)])
+    try:
+        got = sc.fetch_paris_listing(page=2)
+        assert got == {"AAA.PA": "Aaa", "DDD.PA": "DDD"}, got            # uniquement les actions de Paris
+        def boom(*a, **k): raise RuntimeError("réseau")
+        yf.screen = boom
+        assert sc.fetch_paris_listing() == {}                             # échec : repli sur universe.csv
+    finally:
+        yf.screen = real
+    assert sc.MIN_TURNOVER_EUR == 100_000
+    print("OK auto_universe")
+
+
+def test_modes():
+    h = frozenset({"AIR.PA"})
+    at = lambda hh, mm: pd.Timestamp(f"2026-11-12 {hh:02d}:{mm:02d}", tz=P)
+    # alternance : :00-:14 complet, :15-:29 positions, :30-:44 complet, :45-:59 positions
+    assert [sc.choose_mode(at(10, m), h, {}) for m in (2, 17, 32, 47)] == ["full", "held", "full", "held"]
+    assert sc.choose_mode(at(17, 55), h, {}) == "full"                                           # passage de clôture : toujours complet
+    assert sc.choose_mode(at(10, 17), frozenset(), {}) == "full"                                 # aucune position : toujours complet
+    assert sc.choose_mode(at(10, 17), h, {"GITHUB_EVENT_NAME": "workflow_dispatch"}) == "full"   # lancement manuel
+    assert sc.choose_mode(at(10, 2), h, {"SCAN_MODE": "held"}) == "held"
+    # passage « positions » : seules les positions sont recalculées, le reste de data.json est conservé
+    prev = {"meta": {"updated": "A", "analysed": 5, "universe": 9}, "stocks": {"MC.PA": {"name": "LVMH"}, "AIR.PA": {"name": "old"}}}
+    new = {"meta": {"updated": "B"}, "stocks": {"AIR.PA": {"name": "Airbus"}}}
+    out = sc.merge_partial(prev, new)
+    assert out["stocks"]["MC.PA"] == {"name": "LVMH"} and out["stocks"]["AIR.PA"]["name"] == "Airbus"
+    assert out["meta"]["updated"] == "B" and out["meta"]["full_updated"] == "A" and out["meta"]["analysed"] == 5
+    print("OK modes")
+
+
 def test_holdings_always_scanned():
     now = ts("2026-11-11 10:40")
     specs = {"AAA.PA": (1, 0.0, 5e6), "ILLIQ.PA": (2, 0.0, 10.0), "HORS.PA": (3, 0.0, 5e6)}
@@ -461,6 +511,7 @@ if __name__ == "__main__":
     out.mkdir(parents=True, exist_ok=True)
     test_heikin_ashi()
     test_body_modes()
+    test_slope()
     test_persistence()
     test_lines_and_classify()
     test_calendar()
@@ -471,6 +522,8 @@ if __name__ == "__main__":
     test_s_config()
     test_notifications()
     test_pending()
+    test_auto_universe()
+    test_modes()
     test_holdings_always_scanned()
     test_end_to_end(out)
     print("\nTOUS LES TESTS PASSENT")

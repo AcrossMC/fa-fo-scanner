@@ -5,16 +5,17 @@ Il envoie les notifications sur votre téléphone (application ntfy) et met à j
 
 ## Ce que ça fait
 
-- **Fa1h · AIR** (🟢) : le **haut du corps** d'une bougie Heikin Ashi 1h clôturée dépasse la MM7 et la Tenkan. La configuration **dure** jusqu'au Fo.
-- **Fo1h · AIR** (🔴) : le **bas du corps** d'une bougie clôturée passe sous la MM7 et la Tenkan : c'est l'invalidation du Fa, et le Fo dure à son tour jusqu'au prochain Fa. Entre les deux signaux, l'état ne change pas. Si une même bougie remplit les deux conditions (corps qui couvre toute la zone entre les lignes), l'état précédent continue.
-- **S haussière** (🟩) : une bougie Heikin Ashi **sans corps** (corps ≤ 10 % de sa hauteur) apparaît après **au moins 3 bougies HA baissières** consécutives. Notifications en 4h, 1j, 1sem, 1mois. Exemple : « 🟩 S4h · AIR ».
-- **S baissière** (🟥) : même bougie sans corps, mais après **au moins 3 bougies HA vertes** consécutives. Visible dans l'application pour toutes les actions ; **notifiée uniquement pour vos positions**. Pas de condition sur la MM7 ou la Tenkan pour S.
-- Pour les actions non détenues, Fa et Fo ne notifient qu'en 1j, 1sem, 1mois ; le 1h et le 4h (reconstruit : 9h-13h puis 13h-17h35) restent consultables dans l'application. Les réglages sont dans `NOTIFY` en haut de `scanner.py`.
-- **Vos positions (⭐)** : dans la fiche d'une action, le bouton « J'ai cette action » la met en position. Elle apparaît alors **en premier** dans l'application (bloc « Mes positions » en haut, étoile dans toutes les listes) et elle est toujours analysée, même si elle sort de la liste ou passe sous le seuil de liquidité. Ses notifications sont **différentes** : titre précédé de ⭐, ligne « POSITION DÉTENUE », priorité haute (priorité maximale pour Fo et S baissière) et **toutes les unités de temps** (1h, 4h, 1j, 1sem, 1mois) pour Fa, Fo, S haussière et S baissière. Cela demande l'étape 7.
-- **Affichage simplifié** : chaque action n'affiche que son nom, son prix et une puce par unité de temps (1h, 4h, 1j, 1sem, 1mois) : rond vert = Fa, rond rouge = Fo, rond vide = neutre ; carré vert = S haussière, carré rouge = S baissière. En touchant l'action : l'état détaillé de chaque unité de temps et les **probabilités à la clôture de la bougie en cours** (Fa, Fo, S haussière, S baissière).
-- Toucher la notification ouvre l'état des lieux de l'action (toutes les unités de temps).
-- L'application a deux rangées d'onglets : unité de temps, puis Fa (validées) / En cours (avec un %) / Fo (invalidées) / S.
-- Univers : une centaine de valeurs de Paris (`universe.csv`), filtrées automatiquement sur la liquidité (au moins 2 M€ échangés par jour en moyenne).
+Le scanner cherche les configurations **en cours de validation**, c'est-à-dire la bougie Heikin Ashi (HA) en formation, avant sa clôture, avec le pourcentage de chances qu'elle valide la configuration.
+
+- **Fa** (🟢) : le **haut du corps** de la bougie HA dépasse la MM7 et la Tenkan. Une action apparaît en « Fa en cours » si elle n'est **pas déjà en Fa** et si la bougie en formation a au moins **30 %** de chances de clôturer en Fa. La mention « déjà au-dessus » indique que la bougie remplit la condition en ce moment même.
+- **S haussière** (🟩) : bougie HA **sans corps** (corps ≤ 10 % de sa hauteur) après **au moins 3 bougies HA baissières**. Elle apparaît en « S en cours » dès **30 %** de chances de clôturer ainsi.
+- **Unités de temps pour les actions que vous ne détenez pas** : 4h, 1j, 1sem, 1mois. Le **1h n'est plus affiché ni notifié** pour elles.
+- **Application** : unités de temps en haut, puis seulement deux onglets, **Fa** et **S**, triés par probabilité décroissante. Une Fa déjà validée ne s'y affiche plus.
+- **Notifications (actions non détenues)** : une alerte quand la probabilité franchit 30 % (« 🟢 Fa1j 42% · AIR », « 🟩 S4h 35% · AIR »), et une seule autre si elle dépasse 60 %, pour la même bougie. Pas d'alerte de validation, pas de Fo, pas de S baissière.
+- **Vos positions (⭐)** : bouton « J'ai cette action » dans la fiche. L'action passe en haut (bloc « Mes positions ») avec **toutes les unités de temps, 1h comprise**. On y voit aussi **Fo** et **S baissière** (🟥 : sans corps après au moins 3 bougies vertes), validés et en cours. Seuils : **50 % pour le 1h**, 30 % pour les autres unités. Les notifications sont ⭐, en priorité haute (maximale pour Fo et S baissière), et vous gardez aussi les alertes de validation (Fa, Fo, S, toutes unités). Cela demande l'étape 7.
+- Fa et Fo durent : un Fa reste en place jusqu'à l'apparition d'un Fo (le **bas du corps** sous la MM7 et la Tenkan), et inversement.
+- Toucher la notification ouvre la fiche de l'action, sur l'unité de temps de l'alerte. La fiche propose deux boutons graphique : **TradingView** (ouvre le graphique à l'unité de temps de l'onglet : 4h → 4 heures) et **Investing.com** (page de l'action ; l'unité se règle sur place, voir `docs/investing.json`).
+- Univers : une centaine de valeurs de Paris (`universe.csv`), filtrées sur la liquidité (au moins 1 M€ échangés par jour en moyenne).
 
 ## 1. Notifications sur le téléphone (ntfy)
 
@@ -71,21 +72,28 @@ Le jeton reste sur ce téléphone (stockage du navigateur) ; ne le partagez pas.
 |---|---|---|
 | `BODY_MODE` | `"edge"` | `"edge"` : haut du corps pour Fa, bas du corps pour Fo ; `"full"` : corps entier au-delà des deux lignes ; `"close"` : clôture seule |
 | `INDICATORS_ON` | `"ha"` | MM7/Tenkan calculées sur les bougies HA (comme sur un graphique HA) ; `"normal"` : sur bougies classiques |
-| `NOTIFY` | Fa, Fo : 1j, 1sem, 1mois ; S haussière : 4h, 1j, 1sem, 1mois ; S baissière : aucune | notifications des actions non détenues, par configuration |
-| `NOTIFY_HELD` | toutes les unités de temps, pour les 4 configurations | notifications des actions détenues |
+| `PROB_MIN` | 0.30 | seuil (en cours) pour afficher et notifier une action non détenue, et pour les unités ≥ 4h des positions |
+| `PROB_HIGH` | 0.60 | seuil de la 2e notification (une seule par bougie) |
+| `PROB_MIN_HELD_1H` | 0.50 | seuil du 1h, réservé aux actions détenues |
+| `VISIBLE_TF` | 4h, 1j, 1sem, 1mois | unités de temps affichées et notifiées pour les actions non détenues (ajoutez `"1h"` pour le remettre) |
+| `NOTIFY_PENDING` | Fa et S haussière | notifications « en cours » des actions non détenues |
+| `NOTIFY_PENDING_HELD` | les 4 configurations, toutes unités | notifications « en cours » des actions détenues |
+| `NOTIFY_HELD` | les 4 configurations, toutes unités | notifications de validation (bougie clôturée) des actions détenues |
 | `S_MIN_RUN` | 3 | bougies HA de même sens minimales avant la bougie sans corps |
 | `S_BODY_MAX` | 0.10 | « sans corps » : corps ≤ 10 % de la hauteur de la bougie |
-| `MIN_TURNOVER_EUR` | 2 000 000 | liquidité minimale (€ échangés par jour) |
-| `PROB_MIN` | 0.20 | % minimal pour apparaître dans « En cours » |
+| `MIN_TURNOVER_EUR` | 1 000 000 | liquidité minimale (€ échangés par jour) |
 | `MAX_PUSH_PER_RUN` | 30 | au-delà, une notification récapitulative |
 
 Pour ajouter ou retirer une action : modifiez `universe.csv` (une ligne `TICKER.PA,Nom`).
 
 ## Bon à savoir
 
+- **Source des cours : Yahoo Finance, pas Investing.com.** Investing.com n'offre pas d'accès automatique autorisé et gratuit à ses cours ; un GitHub Actions y serait de plus bloqué. Le retard d'environ 15 minutes vient de la diffusion gratuite d'Euronext. Un vrai temps réel passe par une licence Euronext, via un fournisseur payant.
+- **Bouton Investing.com** : les adresses de ses pages ne se déduisent pas du ticker (Airbus = `eads`). Pour qu'une action ouvre directement sa page, ajoutez une ligne dans `docs/investing.json`, par exemple `"AIR.PA": "eads"` (le texte entre `/equities/` et `-chart` dans l'adresse de la page). Sans ligne, le bouton lance une recherche Investing.com sur le nom de l'action.
+
 - **Pas de couleur dans les notifications** : ntfy n'affiche pas de texte coloré. Le vert et le rouge sont donc des pastilles dans le titre : 🟢 / 🔴 pour Fa / Fo, carrés 🟩 / 🟥 pour S haussière / baissière ; l'application, elle, est colorée.
 - **Délais** : cours Yahoo Finance différés d'environ 15 min. Les exécutions programmées de GitHub peuvent aussi prendre quelques minutes de retard aux heures chargées. Comptez donc 15 à 30 min entre un événement et la notification.
-- **Bougies jour, semaine, mois** : validées au passage de 17h55 (après la clôture). Pendant la séance, elles apparaissent dans « En cours » avec un pourcentage.
+- **Bougies jour, semaine, mois** : validées au passage de 17h55 (après la clôture). Pendant la séance, la bougie en formation apparaît dans les onglets Fa et S avec son pourcentage ; une fois clôturée, une Fa validée quitte l'onglet.
 - **Le % « en cours »** est une estimation statistique (simulation sur le temps restant de la bougie, avec la volatilité récente), pas une prévision.
 - **Limite ntfy.sh** : environ 250 notifications par jour sur le serveur gratuit. Avec les 5 unités de temps, une journée très active peut s'en approcher ; au-delà, vous recevez un récapitulatif. Pour moins de bruit, retirez des unités de temps ou relevez `MIN_TURNOVER_EUR`.
 - **Données Yahoo** : gratuites mais non garanties ; vérifiez toujours le signal sur votre graphique avant d'agir. Ce n'est pas un conseil en investissement.

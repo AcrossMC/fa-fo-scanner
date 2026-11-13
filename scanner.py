@@ -138,7 +138,8 @@ def persist(raw):
 
 def classify(hao, hac, mm, tk):
     """+1 = Fa, -1 = Fo, 0 = aucun signal sur cette bougie (voir BODY_MODE).
-    Si une même bougie remplit les deux conditions (corps qui couvre toute la zone MM7-Tenkan), aucun signal : l'état précédent continue."""
+    Si une même bougie remplit les deux conditions (corps qui couvre toute la zone MM7-Tenkan), la couleur du corps tranche :
+    bougie verte = Fa, bougie rouge = Fo (corps nul : aucun signal, l'état précédent continue)."""
     up_ref, dn_ref = body_refs(hao, hac)
     top, bot = np.maximum(mm, tk), np.minimum(mm, tk)
     valid = ~np.isnan(top)
@@ -147,6 +148,9 @@ def classify(hao, hac, mm, tk):
     st = np.zeros(len(hac), dtype=int)
     st[fa & ~fo] = 1
     st[fo & ~fa] = -1
+    both = fa & fo
+    st[both & (hac > hao)] = 1
+    st[both & (hac < hao)] = -1
     return st
 
 
@@ -260,7 +264,9 @@ def simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, remaining, sigma, rng, 
     up_ref, dn_ref = body_refs(np.full(SIM_PATHS, hao[n]), hac_s)
     fa_raw = up_ref > np.maximum(mm, tk)
     fo_raw = dn_ref < np.minimum(mm, tk)
-    fa, fo = fa_raw & ~fo_raw, fo_raw & ~fa_raw
+    both = fa_raw & fo_raw
+    green, red = hac_s > hao[n], hac_s < hao[n]
+    fa, fo = (fa_raw & ~fo_raw) | (both & green), (fo_raw & ~fa_raw) | (both & red)
     hh = hah_s - hal_s
     nobody = (hh > 0) & (np.abs(hac_s - hao[n]) <= S_BODY_MAX * hh)
     p_nobody = float(nobody.mean())

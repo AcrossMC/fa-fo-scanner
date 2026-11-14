@@ -378,7 +378,8 @@ def test_pending():
     # détenue : tout, 1h compris
     assert len(sel(evs, held=h)) == 5 * 4
     # seuils : 30 % (autres unités), 50 % pour le 1h des actions détenues
-    assert sc.threshold("4h", False) == 0.30 and sc.threshold("1h", True) == 0.50 and sc.threshold("1d", True) == 0.30
+    assert all(sc.threshold(k, False) == 0.60 for k in ("4h", "1d", "1w", "1mo"))
+    assert sc.threshold("1h", True) == 0.30 and sc.threshold("1d", True) == 0.30
     # une alerte au seuil, une 2e au-dessus de 60 %, puis plus rien pour la même bougie
     sent = []
     push = lambda t, m, c, priority=3: sent.append((t, m, c, priority))
@@ -403,6 +404,27 @@ def test_pending():
     sc.deliver([mk("1d", "Fo~", 0.55), mk("4h", "S-~", 0.5)], data, {}, push, "https://x/", False, holdings=h)
     assert {t: p for t, _, _, p in sent} == {"⭐ 🔴 Fo1j 55% · AIR": 5, "⭐ 🟥 S4h 50% · AIR": 5}, sent
     assert all(m.startswith("POSITION DÉTENUE") for _, m, _, _ in sent)
+    # positions S / Fa : SL > 90 %, Fo même UT > 60 %, S baissière UT inférieure > 60 % ; « Autre » = rien
+    pos = {"AIR.PA": [{"t": "AIR.PA", "c": "S", "tf": "1d", "e": None, "ts": None}]}
+    evp = [mk("1d", "SL~", 0.93), mk("1d", "SL~", 0.85), mk("1d", "Fo~", 0.65), mk("1d", "Fo~", 0.5), mk("4h", "S-~", 0.7), mk("1d", "S-~", 0.9), mk("1d", "Fa~", 0.9)]
+    evp[0]["sl"] = 160.0
+    got = [(e["tf"], e["kind"], e["p"]) for _, e in sc.select_new(evp, {}, h, pos)]
+    assert got == [("1d", "SL~", 0.93), ("1d", "Fo~", 0.65), ("4h", "S-~", 0.7)], got
+    oth = {"AIR.PA": [{"t": "AIR.PA", "c": "O", "tf": None, "e": None, "ts": None}]}
+    assert sc.select_new(evp, {}, h, oth) == []
+    sent.clear()
+    sc.deliver([evp[0]], data, {}, push, "https://x/", False, holdings=h, positions=pos)
+    assert sent[0][0] == "⭐ 🛑 SL 1j 93% · AIR" and sent[0][3] == 5 and "160.00" in sent[0][1], sent
+    # probabilité de toucher le SL, et règle du SL (la plus haute de deux valeurs ; S devenue Fa : plus de SL)
+    assert sc.p_touch(100, 101, 0.02) == 1.0 and 0.0 < sc.p_touch(100, 98, 0.02) < 0.5 and sc.p_touch(100, 90, 0.01) < 0.001
+    stk = {"tf": {"1d": {"state": "none", "since": "2026-11-01T00:00:00+01:00", "lv": {"low_prev": 95.0}},
+                  "4h": {"state": "fa", "since": "2026-11-12T10:00:00+01:00", "lv": {"low_prev": 1, "fa_body_low": 97.0}}}}
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (97.0, "S")
+    assert sc.position_sl({"c": "Fa", "tf": "1d", "ts": 1}, stk) == (None, "Fa")
+    stk["tf"]["1d"].update(state="fa")
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (None, "Fa")
+    assert sc.parse_positions("AIR.PA:S:4h:171.5:1700000000,mc:Fa:1d,RUI.PA:O,OR")["AIR.PA"][0]["tf"] == "4h"
+    assert sc.parse_positions("OR.PA")["OR.PA"][0]["c"] == "O"
     # premier passage : mémorisé sans notifier
     sent.clear()
     st, n = sc.deliver([mk("1d", "Fa~", 0.5)], data, {}, push, "https://x/", True)

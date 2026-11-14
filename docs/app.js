@@ -57,15 +57,15 @@
   }
 
   // ===================== Positions : stockage, format GitHub « TICKER:CONFIG:UT:PRIX:HORODATAGE » =====================
-  const posKey = (p) => `${p.t}|${p.c || ""}|${p.tf || ""}`;
-  function serialize(p) { return [p.t, p.c || "", p.tf || "", p.e == null ? "" : p.e, Math.round((p.ts || Date.now()) / 1000)].join(":"); }
+  const posKey = (p) => `${p.t}|${p.c || "O"}|${p.tf || ""}`;
+  function serialize(p) { return [p.t, p.c || "O", p.tf || "", p.e == null ? "" : p.e, Math.round((p.ts || Date.now()) / 1000)].join(":"); }
   function parsePos(raw) {
     const out = [];
     for (const part of (raw || "").replace(/[;\n]/g, ",").split(",")) {
       const f = part.trim().split(":");
       const t0 = (f[0] || "").toUpperCase();
       if (!/^[A-Z0-9]+(\.[A-Z]+)?$/.test(t0)) continue;
-      const c = f[1] === "S" || f[1] === "Fa" ? f[1] : null;
+      const c = f[1] === "S" || f[1] === "Fa" ? f[1] : "O";
       const k = TF_KEYS.includes(f[2]) ? f[2] : null;
       const e = f[3] !== undefined && f[3] !== "" && isFinite(+f[3]) ? +f[3] : null;
       const ts = f[4] && isFinite(+f[4]) ? +f[4] * 1000 : Date.now();
@@ -74,7 +74,7 @@
     return out;
   }
   function loadPos() {
-    try { const raw = store("pos"); if (raw) return JSON.parse(raw); } catch (e) { /* rien */ }
+    try { const raw = store("pos"); if (raw) return JSON.parse(raw).map((p) => ({ ...p, c: p.c === "S" || p.c === "Fa" ? p.c : "O" })); } catch (e) { /* rien */ }
     return parsePos(store("held") || "");                    // ancienne version : simples tickers
   }
   function savePos() { store("pos", JSON.stringify(pos)); }
@@ -85,7 +85,7 @@
   // S devenue Fa dans la même UT (Fa apparue après l'entrée) : plus de SL, sorties de la Fa.
   // TP : MM7 (HA), MM20/50/100/200 (classiques) de la même UT, ou « Fo » de l'UT supérieure : Tenkan, MM7 si baissière.
   function plan(p, s) {
-    if (!p.c || !p.tf) return { incomplete: true };
+    if (p.c === "O" || !p.c || !p.tf) return { other: true };
     const r = s.tf[p.tf];
     if (!r || !r.lv) return { pending: true };
     const price = s.price;
@@ -119,7 +119,9 @@
     if (passed.length) reasons.push("TP franchi : " + passed.map((c) => c.label).join(", "));
     return { mode, converted, sl, tps, passed, reasons, price };
   }
-  const modeLabel = (p, pl) => (p.c ? (pl && pl.converted ? "S → Fa" : p.c === "S" ? "S" : "Fa") + " · " + TF_LAB[p.tf] : "à préciser");
+  const modeLabel = (p, pl) => (p.c === "S" || p.c === "Fa" ? (pl && pl.converted ? "S → Fa" : p.c) + " · " + TF_LAB[p.tf] : "Autre");
+const GROUPS = ["1h · 4h · 1j", "1 semaine", "1 mois", "Autres entrées"];
+const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.tf === "1mo" ? 2 : 0);
 
   // ===================== Scanner : « en cours de validation », classé par volume d'achat du secteur =====================
   const visibleTf = () => (data && data.meta.visible_tf) || ["4h", "1d", "1w", "1mo"];
@@ -149,7 +151,7 @@
 
   function renderViews() {
     viewTabs.innerHTML = `<button role="tab" data-view="scan" aria-selected="${view === "scan"}">Scanner</button>`
-      + `<button role="tab" data-view="own" aria-selected="${view === "own"}">Possédées<span class="count">${pos.length}</span></button>`;
+      + `<button role="tab" data-view="own" aria-selected="${view === "own"}">Mon PF<span class="count">${pos.length}</span></button>`;
     for (const id of ["tfTabs", "stTabs", "searchWrap"]) $(id).hidden = view !== "scan";
   }
   function renderTabs() {
@@ -224,34 +226,45 @@
     list.innerHTML = html || `<div class="empty">Aucune action ne correspond à « ${esc(query.trim())} ».</div>`;
   }
 
-  // ===================== Possédées =====================
+  // ===================== Mon PF =====================
+  function stateChips(s) {
+    return `<div class="chips">` + TFS.map(([k, l]) => {
+      const r = s.tf[k];
+      if (!r) return "";
+      return `<span class="chip"><b>${l}</b>${dot(r.state)}${r.s && r.s.active ? sq(r.s.dir) : ""}</span>`;
+    }).join("") + `</div>`;
+  }
   function renderOwned() {
     if (!pos.length) {
-      list.innerHTML = `<div class="empty">Aucune action possédée.<br>Dans le Scanner, touchez une action puis choisissez S ou Fa, et l'unité de temps de votre entrée.</div>`;
+      list.innerHTML = `<div class="empty">Aucune action dans Mon PF.<br>Dans le Scanner, touchez une action puis choisissez S, Fa ou Autre.</div>`;
       return;
     }
-    const cards = [...pos].sort((a, b) => b.ts - a.ts).map((p) => {
+    const items = pos.map((p) => {
       const s = data.stocks[p.t];
-      const name = s ? s.name : "";
-      if (!s) return `<div class="card held nodata"><span class="tick">${esc(short(p.t))}</span><span class="muted"> · ${esc(modeLabel(p))} · analyse au prochain passage (15 min au plus)</span></div>`;
-      const pl = plan(p, s);
+      const pl = s ? plan(p, s) : null;
+      const dist = pl && pl.sl ? (s.price - pl.sl.v) / s.price : Infinity;          // écart au SL : les plus proches d'abord
+      return { p, s, pl, dist, g: groupOf(p) };
+    }).sort((a, b) => a.g - b.g || a.dist - b.dist || b.p.ts - a.p.ts);
+    let html = "", cur = -1;
+    for (const { p, s, pl, g } of items) {
+      if (g !== cur) { cur = g; html += `<h3 class="grp">${GROUPS[g]}</h3>`; }
+      if (!s) { html += `<div class="card held nodata"><span class="tick">${esc(short(p.t))}</span><span class="muted"> · ${esc(modeLabel(p))} · analyse au prochain passage (15 min au plus)</span></div>`; continue; }
       let body = "";
-      if (pl.incomplete) body = `<div class="muted small">Entrée à préciser (configuration et unité de temps).</div>`;
+      if (pl.other) body = stateChips(s);
       else if (pl.pending) body = `<div class="muted small">Niveaux SL / TP calculés au prochain passage (15 min au plus).</div>`;
       else {
-        body += pl.sl ? `<div class="lvl"><b>SL</b> ${fmtPrice(pl.sl.v)} <span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>`
-                      : `<div class="lvl muted">Pas de SL : sortie par un TP ou un Fo ${TF_LAB[p.tf]}</div>`;
+        body += pl.sl ? `<div class="lvl"><b>SL</b> ${fmtPrice(pl.sl.v)} <span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>` : `<div class="lvl muted"><b>SL</b> aucun (Fa)</div>`;
         body += pl.tps.length ? `<div class="lvl"><b>TP</b> ${esc(pl.tps[0].label)} ${fmtPrice(pl.tps[0].v)} <span class="muted">${fmtVs(pl.tps[0].v, s.price)}</span></div>` : "";
         if (pl.reasons.length) body += `<div class="banner">Sortie signalée : ${esc(pl.reasons.join(" · "))}</div>`;
       }
       const pnl = p.e != null ? ` · entrée ${fmtPrice(p.e)} <span class="${s.price >= p.e ? "up" : "down"}">${fmtVs(s.price, p.e)}</span>` : "";
-      return `<button class="card held pos" data-pos="${esc(posKey(p))}">
-        <div class="row"><span class="left"><span class="star">⭐</span><span class="tick">${esc(short(p.t))}</span><span class="name">${esc(name)}</span></span>
+      html += `<button class="card held pos" data-pos="${esc(posKey(p))}">
+        <div class="row"><span class="left"><span class="star">⭐</span><span class="tick">${esc(short(p.t))}</span><span class="name">${esc(s.name)}</span></span>
         <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
-        <div class="secline"><span class="secbadge modebadge">${esc(modeLabel(p, p.c && !p.incomplete ? plan(p, s) : null))}</span><span class="muted">${esc(s.sector || "")}${pnl}</span></div>
+        <div class="secline"><span class="secbadge modebadge">${esc(modeLabel(p, pl))}</span><span class="muted">${esc(s.sector || "")}${pnl}</span></div>
         ${body}</button>`;
-    }).join("");
-    list.innerHTML = cards;
+    }
+    list.innerHTML = html;
   }
 
   function renderHead() {
@@ -341,15 +354,16 @@
   function renderEntry() {
     const box = $("entryBox"); if (!box || !draft) return;
     const ch = (attr, val, html, on) => `<button class="chbtn${on ? " on" : ""}" ${attr}="${val}">${html}</button>`;
-    let h = `<h3>J'entre sur cette action</h3><div class="choices two">`
-      + ch("data-c", "S", `${sq("up")} S haussière`, draft.c === "S") + ch("data-c", "Fa", `${dot("fa")} Fa`, draft.c === "Fa") + `</div>`;
-    if (draft.c) {
+    let h = `<h3>J'entre sur cette action</h3><div class="choices three">`
+      + ch("data-c", "S", `${sq("up")} S haussière`, draft.c === "S") + ch("data-c", "Fa", `${dot("fa")} Fa`, draft.c === "Fa") + ch("data-c", "O", "Autre", draft.c === "O") + `</div>`;
+    if (draft.c === "O") h += `<p class="note">« Autre » : simple suivi, sans SL ni TP. Vous voyez les configurations sur chaque unité de temps.</p>`;
+    if (draft.c && draft.c !== "O") {
       h += `<h3>Unité de temps de l'entrée</h3><div class="choices five">`
         + TFS.map(([k, l]) => ch("data-etf", k, l, draft.tf === k)).join("") + `</div>`;
     }
-    if (draft.c && draft.tf) {
+    if (draft.c === "O" || (draft.c && draft.tf)) {
       h += `<label class="field" for="entryPx">Prix d'entrée (facultatif)</label><input class="text" id="entryPx" inputmode="decimal" autocomplete="off" placeholder="ex. 36,50">`
-        + `<button class="link" id="entryOk" style="width:100%;border:0;cursor:pointer;margin-top:12px">Ajouter aux possédées · ${draft.c} ${TF_LAB[draft.tf]}</button>`;
+        + `<button class="link" id="entryOk" style="width:100%;border:0;cursor:pointer;margin-top:12px">Ajouter à Mon PF · ${draft.c === "O" ? "Autre" : draft.c + " " + TF_LAB[draft.tf]}</button>`;
     }
     box.innerHTML = h;
   }
@@ -362,20 +376,23 @@
     if (!s) { sheet.innerHTML = sheetHead("⭐ " + esc(short(p.t)), "Analyse au prochain passage") + posActions(key); showSheet(); return; }
     const pl = plan(p, s);
     let h = sheetHead(`⭐ ${esc(short(p.t))}`, `${esc(s.name)} · ${fmtPrice(s.price)} · ${fmtChg(s.chg)}${s.sector ? " · " + esc(s.sector) : ""}`);
-    h += `<div class="plan"><div class="planhead"><span class="secbadge modebadge">${esc(modeLabel(p, pl.incomplete || pl.pending ? null : pl))}</span>`
+    h += `<div class="plan"><div class="planhead"><span class="secbadge modebadge">${esc(modeLabel(p, pl.other || pl.pending ? null : pl))}</span>`
       + `<span class="muted">${p.e != null ? `entrée ${fmtPrice(p.e)} · <span class="${s.price >= p.e ? "up" : "down"}">${fmtVs(s.price, p.e)}</span>` : "prix d'entrée non renseigné"}</span></div>`;
-    if (pl.incomplete) h += `<p class="note">Entrée à préciser : retirez cette ligne puis entrez depuis le Scanner (S ou Fa, puis l'unité de temps).</p>`;
+    if (pl.other) h += `<p class="note">Entrée « Autre » : pas de SL ni de TP. Voici les configurations sur chaque unité de temps.</p>`;
     else if (pl.pending) h += `<p class="note">Les niveaux SL / TP seront calculés au prochain passage (15 minutes au plus).</p>`;
     else {
       if (pl.reasons.length) h += `<div class="banner">Sortie signalée : ${esc(pl.reasons.join(" · "))}</div>`;
-      if (pl.converted) h += `<p class="note">La S est devenue une Fa en ${TF_LAB[p.tf]} : le stop loss de la S est retiré, les sorties sont celles de la Fa en cours.</p>`;
       if (pl.sl) {
-        h += `<h3>Stop loss (en séance)</h3><div class="lvrow"><span class="lv-v">${fmtPrice(pl.sl.v)}</span><span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>`
-          + `<div class="since">${esc(pl.sl.label)}</div>`
-          + (pl.sl.other ? `<div class="since muted">Autre valeur examinée : ${fmtPrice(pl.sl.other.v)} (${esc(pl.sl.other.label)}), plus basse.</div>`
-            : `<div class="since muted">Pas de 2e valeur : aucune Fa en cours dans l'unité de temps inférieure${lowerTf(p.tf) ? "" : " (pas d'unité inférieure)"}.</div>`);
+        const help = (pl.converted ? "" : "")
+          + (pl.sl.other ? `Autre valeur examinée : ${fmtPrice(pl.sl.other.v)} (${pl.sl.other.label}), plus basse, donc non retenue.`
+            : `Pas de 2e valeur : aucune Fa en cours dans l'unité de temps inférieure${lowerTf(p.tf) ? "" : " (pas d'unité inférieure)"}.`)
+          + " Le SL est un stop en séance : la plus haute de deux valeurs (plus bas de la bougie précédente, mèche ou corps ; bas du corps de la 1re bougie Fa en cours de l'unité inférieure).";
+        h += `<h3>Stop loss (en séance) ${helpBtn(help)}</h3><div class="lvrow"><span class="lv-v">${fmtPrice(pl.sl.v)}</span><span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>`
+          + `<div class="since">${esc(pl.sl.label)}</div>`;
       } else {
-        h += `<h3>Stop loss</h3><div class="since">Pas de SL pour une Fa : sortie par un TP, ou quand l'action bascule en Fo en ${TF_LAB[p.tf]}.</div>`
+        const help = (pl.converted ? `La S est devenue une Fa en ${TF_LAB[p.tf]} : le stop loss de la S est retiré, les sorties sont celles de la Fa en cours. ` : "")
+          + `Pas de SL pour une Fa : sortie par un TP, ou quand l'action bascule en Fo en ${TF_LAB[p.tf]}.`;
+        h += `<h3>Stop loss ${helpBtn(help)}</h3><div class="since">Aucun stop loss.</div>`
           + `<div class="since">État ${TF_LAB[p.tf]} : <span class="pill ${s.tf[p.tf].state}">${dot(s.tf[p.tf].state)}${s.tf[p.tf].state === "fa" ? "Fa validé" : s.tf[p.tf].state === "fo" ? "Fo" : "Fa non validé"}</span></div>`;
       }
       h += `<h3>Take profit (du plus petit au plus grand)</h3>`;
@@ -387,7 +404,8 @@
     h += `</div>` + posActions(key) + `<div class="tf-table">${tfRows(s, true)}</div>` + chartLinks(p.t, s.name, p.tf || tf);
     sheet.innerHTML = h; showSheet();
   }
-  const posActions = (key) => `<div class="posacts"><button class="posbtn" data-edit="${esc(key)}">Modifier le prix d'entrée</button><button class="posbtn on" data-sell="${esc(key)}">J'ai vendu : retirer des possédées</button></div>`;
+  const helpBtn = (txt) => `<span class="helpwrap"><button class="qmark" data-help type="button" aria-label="Explication">?</button><span class="bubble" role="note">${esc(txt)}</span></span>`;
+  const posActions = (key) => `<div class="posacts"><button class="posbtn" data-edit="${esc(key)}">Modifier le prix d'entrée</button><button class="posbtn on" data-sell="${esc(key)}">J'ai vendu : retirer de Mon PF</button></div>`;
 
   function showSheet() { sheet.hidden = false; backdrop.hidden = false; const c = $("closeSheet"); if (c) c.focus(); }
   function closeSheet() {
@@ -415,19 +433,25 @@
       body: body ? JSON.stringify(body) : undefined,
     });
   }
+  async function ghError(r, what) {
+    let msg = "";
+    try { msg = (await r.json()).message || ""; } catch (e) { /* rien */ }
+    const hint = r.status === 401 ? " : jeton invalide ou expiré"
+      : r.status === 403 ? " : le jeton n'a pas la permission « Variables » (lecture et écriture) sur CE dépôt"
+      : r.status === 404 ? " : dépôt introuvable (vérifiez pseudo/nom) ou jeton sans accès à ce dépôt" : "";
+    return new Error(`GitHub ${r.status} en ${what}${hint}${msg ? " — « " + msg + " »" : ""}`);
+  }
   async function readRemote() {
     const r = await gh("GET", "/" + GH_VAR);
     if (r.status === 404) return null;
-    if (r.status === 401 || r.status === 403) throw new Error("jeton refusé (permission « Variables » en lecture et écriture requise)");
-    if (!r.ok) throw new Error("GitHub " + r.status);
+    if (!r.ok) throw await ghError(r, "lecture");
     return parsePos((await r.json()).value);
   }
   async function writeRemote(list_) {
     const value = list_.length ? list_.map(serialize).join(",") : "-";          // GitHub refuse une valeur vide
     let r = await gh("PATCH", "/" + GH_VAR, { name: GH_VAR, value });
     if (r.status === 404) r = await gh("POST", "", { name: GH_VAR, value });
-    if (r.status === 401 || r.status === 403) throw new Error("jeton refusé (permission « Variables » en lecture et écriture requise)");
-    if (!r.ok) throw new Error("GitHub " + r.status);
+    if (!r.ok) throw await ghError(r, "écriture");
   }
   const canSync = () => !!(token && repo);
 
@@ -523,14 +547,16 @@
   });
   sheet.addEventListener("click", async (e) => {
     if (e.target.closest("#closeSheet")) { closeSheet(); return; }
+    const hb = e.target.closest("[data-help]");
+    if (hb) { hb.parentElement.classList.toggle("open"); return; }
     const c = e.target.closest("[data-c]");
-    if (c && draft) { draft.c = c.dataset.c; renderEntry(); return; }
+    if (c && draft) { draft.c = c.dataset.c; if (draft.c === "O") draft.tf = null; renderEntry(); return; }
     const k = e.target.closest("[data-etf]");
     if (k && draft) { draft.tf = k.dataset.etf; renderEntry(); return; }
-    if (e.target.closest("#entryOk") && draft && draft.c && draft.tf) {
+    if (e.target.closest("#entryOk") && draft && (draft.c === "O" || (draft.c && draft.tf))) {
       const raw = ($("entryPx").value || "").trim().replace(",", ".");
       const px = raw !== "" && isFinite(+raw) && +raw > 0 ? +raw : null;
-      const np = { t: draft.t, c: draft.c, tf: draft.tf, e: px, ts: Date.now() };
+      const np = { t: draft.t, c: draft.c, tf: draft.c === "O" ? null : draft.tf, e: px, ts: Date.now() };
       draft = null; closeSheet(); view = "own"; store("view", view);
       await changePositions(upsert(np), "⭐ Entrée enregistrée : notifications prioritaires dès le prochain passage (15 min au plus).");
       return;

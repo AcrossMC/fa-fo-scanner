@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import re
 import sys
@@ -68,8 +69,17 @@ NOTIFY = {"Fa": [], "Fo": [], "S+": [], "S-": []}
 NOTIFY_HELD = {"Fa": _ALL, "Fo": _ALL, "S+": _ALL, "S-": _ALL}
 
 
+PROB_NOTIFY = {"4h": 0.60, "1d": 0.60, "1w": 0.60, "1mo": 0.60}   # actions NON détenues : une seule notification par bougie, à 60 % sur toutes les unités
+PROB_EXIT = 0.60           # positions : alerte Fo (même UT) ou S baissière (UT inférieure) au-dessus de cette probabilité
+PROB_SL = 0.90             # positions S : alerte « stop loss bientôt touché » au-dessus de cette probabilité
+POS_ALERT_CONFIGS = ("S", "Fa")   # les entrées « Autre » (O) n'ont ni SL, ni TP, ni alerte
+
+
 def threshold(tf, held):
-    return PROB_MIN_HELD_1H if (held and tf == "1h") else PROB_MIN
+    """Seuil de génération des événements « en cours ». Positions : bas (30 %), l'alerte exacte est filtrée dans select_new."""
+    if held:
+        return PROB_MIN
+    return PROB_NOTIFY.get(tf, PROB_MIN)
 S_MIN_RUN = 3              # S : nombre minimal de bougies HA de même sens consécutives avant la bougie sans corps
 S_WICK_MAX = 0.10          # S : « sans mèche » = mèche <= 10 % de la hauteur de la bougie (haute pour S haussière, basse pour S baissière)
 AUTO_UNIVERSE = True       # True : à chaque passage, ajoute à universe.csv toutes les actions de Paris listées par Yahoo (puis filtre sur la liquidité)
@@ -396,6 +406,7 @@ def analyze_tf(df, tf, now_eff, rng):
             p_fa, p_fo, p_su, p_sd = simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, rem, sigma, rng,
                                               run(nc, bear) if clean_count(nc, run(nc, bear), bear_clean) >= S_WICK_MIN else 0,
                                               run(nc, bull) if clean_count(nc, run(nc, bull), bull_clean) >= S_WICK_MIN else 0)
+            res["sd_rem"] = round(sigma * float(np.sqrt(max(rem, 1e-9))), 5)      # écart-type du rendement jusqu'à la fin de la bougie
             res["p_fa"], res["p_fo"] = round(p_fa, 2), round(p_fo, 2)
             res["p_s_up"], res["p_s_down"] = round(p_su, 2), round(p_sd, 2)
     return res
@@ -467,7 +478,54 @@ def fetch_paris_listing(page=250, max_pages=8):
 
 # ===================================== Scan =====================================
 
-def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset()):
+def lower_tf(tf):
+    i = TF_ORDER.index(tf)
+    return TF_ORDER[i - 1] if i > 0 else None
+
+
+def higher_tf(tf):
+    i = TF_ORDER.index(tf)
+    return TF_ORDER[i + 1] if i + 1 < len(TF_ORDER) else None
+
+
+def bar_ms(tf):
+    return {"1h": 3600e3, "4h": 14400e3, "1d": 86400e3, "1w": 604800e3, "1mo": 2678400e3}[tf]
+
+
+def position_sl(pos, stock):
+    """Stop loss d'une position (même règle que l'application). Retourne (valeur, mode effectif) ; valeur None s'il n'y a pas de SL.
+    S : la plus haute de deux valeurs : plus bas de la bougie HA précédente, bas du corps de la 1re bougie de la Fa en cours (UT inférieure).
+    Fa, ou S devenue Fa depuis l'entrée : pas de SL."""
+    c, tf = pos.get("c"), pos.get("tf")
+    if c not in POS_ALERT_CONFIGS or tf not in stock["tf"]:
+        return None, None
+    r = stock["tf"][tf]
+    if not r.get("lv"):
+        return None, c
+    if c == "S" and r["state"] == "fa" and pos.get("ts") and \
+            pd.Timestamp(r["since"]).timestamp() * 1000 + bar_ms(tf) > pos["ts"]:
+        return None, "Fa"
+    if c == "Fa":
+        return None, "Fa"
+    best = r["lv"]["low_prev"]
+    lo = lower_tf(tf)
+    lr = stock["tf"].get(lo) if lo else None
+    if lr and lr["state"] == "fa" and lr.get("lv") and lr["lv"].get("fa_body_low") is not None:
+        best = max(best, lr["lv"]["fa_body_low"])
+    return best, "S"
+
+
+def p_touch(price, level, sd):
+    """Probabilité (marche aléatoire sans dérive) que le cours touche `level` (< price) avant la fin de la bougie : 2 x Phi(ln(level/price)/sd)."""
+    if price <= level:
+        return 1.0
+    if not sd or sd <= 0:
+        return 0.0
+    z = math.log(level / price) / sd
+    return min(1.0, 2.0 * 0.5 * (1.0 + math.erf(z / math.sqrt(2.0))))
+
+
+def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset(), positions=None):
     """Retourne (data, events). `fetch(tickers, period, interval)` -> {ticker: DataFrame}.
     Les actions détenues sont toujours analysées, même hors de universe.csv ou sous le seuil de liquidité."""
     now_eff = now - pd.Timedelta(minutes=DATA_DELAY_MIN)
@@ -515,13 +573,17 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
             tfs[tf] = res
         if not tfs:
             continue
-        if t not in holdings and not any(e["ticker"] == t and e["kind"].endswith("~") for e in events):
-            for r in tfs.values():                           # niveaux SL / TP : seulement pour les positions et les actions en cours
-                r.pop("lv", None)
         closes = daily[t]["Close"]
         price = float(closes.iloc[-1])
         prev = float(closes.iloc[-2]) if len(closes) > 1 else price
         stocks[t] = {"name": universe[t], "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2), "tf": tfs}
+        for pos in (positions or {}).get(t, []):             # alerte « stop loss bientôt touché » (positions S)
+            sl, mode = position_sl(pos, stocks[t])
+            r = tfs.get(pos.get("tf"))
+            if sl is not None and mode == "S" and r and r["forming"] and r.get("sd_rem"):
+                p = p_touch(price, sl, r["sd_rem"])
+                if p >= PROB_MIN:
+                    events.append({"ticker": t, "tf": pos["tf"], "kind": "SL~", "bar": r["bar_forming"], "p": round(p, 2), "sl": round(sl, 2)})
 
     data = {
         "meta": {
@@ -558,11 +620,43 @@ def summary_line(stock):
         for tf in TF_ORDER if tf in stock["tf"])
 
 
-def select_new(events, state, holdings=frozenset()):
-    """Événements plus récents que ceux déjà notifiés."""
+def position_alert(e, plist):
+    """Alerte de sortie d'une position S / Fa : Fo sur la même UT (> 60 %), S baissière sur l'UT inférieure (> 60 %),
+    stop loss bientôt touché (> 90 %). Les entrées « Autre » ne déclenchent rien. Retourne True si l'événement (en cours ou validé) compte."""
+    base = e["kind"].rstrip("~")
+    p = e.get("p")
+    for pos in plist:
+        if pos.get("c") not in POS_ALERT_CONFIGS or not pos.get("tf"):
+            continue
+        if base == "Fo" and e["tf"] == pos["tf"] and (p is None or p >= PROB_EXIT):
+            return True
+        if base == "S-" and e["tf"] == lower_tf(pos["tf"]) and (p is None or p >= PROB_EXIT):
+            return True
+        if base == "SL" and e["tf"] == pos["tf"] and p is not None and p >= PROB_SL:
+            return True
+    return False
+
+
+def select_new(events, state, holdings=frozenset(), positions=None):
+    """Événements plus récents que ceux déjà notifiés. `positions` : {ticker: [positions]} ; une action détenue sans détail de position
+    garde les anciennes règles (tout, toutes unités)."""
     new = []
     for e in events:
         held = e["ticker"] in holdings
+        if held and positions is not None:
+            if not position_alert(e, positions.get(e["ticker"], [])):
+                continue
+            if e["kind"].endswith("~"):
+                key = f"{e['ticker']}|{e['tf']}|{e['kind']}|{e['bar']}"
+                e["level"] = 2
+                if e["level"] > int(state.get(key, 0)):
+                    new.append((key, e))
+            else:
+                key = f"{e['ticker']}|{e['tf']}|{e['kind']}"
+                last = state.get(key)
+                if last is None or pd.Timestamp(last if isinstance(last, str) else 0) < pd.Timestamp(e["bar"]):
+                    new.append((key, e))
+            continue
         if e["kind"].endswith("~"):          # « en cours » : 1 alerte au seuil, 1 de plus si > PROB_HIGH, par bougie
             base = e["kind"][:-1]
             rules = NOTIFY_PENDING_HELD if held else NOTIFY_PENDING
@@ -601,8 +695,15 @@ def build_notification(e, stock, app_url, held=False):
     kind = e["kind"]
     pending = kind.endswith("~")
     kind = kind.rstrip("~")
-    icon = {"Fa": "🟢", "Fo": "🔴", "S+": "🟩", "S-": "🟥"}[kind]
+    icon = {"Fa": "🟢", "Fo": "🔴", "S+": "🟩", "S-": "🟥", "SL": "🛑"}[kind]
     name = "S" if kind.startswith("S") else kind
+    if pending and kind == "SL":
+        pct = int(round(e["p"] * 100))
+        title = f"⭐ 🛑 SL {lab} {pct}% · {short(e['ticker'])}"
+        message = (f"POSITION DÉTENUE\n{stock['name']} — {stock['price']:.2f} €\n"
+                   f"{pct} % de chances que le cours touche le stop loss ({e['sl']:.2f} €) avant la fin de la bougie {lab}.\n{summary_line(stock)}")
+        click = f"{app_url.rstrip('/')}/#{e['ticker']}@{e['tf']}" if app_url else None
+        return title, message, click, 5
     if pending:
         pct = int(round(e["p"] * 100))
         title = f"{icon} {name}{lab} {pct}% · {short(e['ticker'])}"
@@ -661,9 +762,9 @@ def prune_state(state, keep_days=45):
     return out
 
 
-def deliver(events, data, state, push, app_url, seeding, holdings=frozenset()):
+def deliver(events, data, state, push, app_url, seeding, holdings=frozenset(), positions=None):
     """Envoie les nouvelles alertes ; retourne (nouvel état, nombre envoyé)."""
-    new = select_new(events, state, holdings)
+    new = select_new(events, state, holdings, positions)
     state = prune_state(state)
 
     def mark(key, e):
@@ -676,6 +777,11 @@ def deliver(events, data, state, push, app_url, seeding, holdings=frozenset()):
     sent = 0
     for key, e in new[:MAX_PUSH_PER_RUN]:
         title, message, click, priority = build_notification(e, data["stocks"][e["ticker"]], app_url, e["ticker"] in holdings)
+        try:
+            hm = pd.Timestamp(data["meta"]["updated"]).tz_convert(PARIS).strftime("%H:%M")
+            message += f"\nAnalyse de {hm} (cours différés de {DATA_DELAY_MIN} min)"
+        except Exception:
+            pass
         try:
             push(title, message, click, priority)
             mark(key, e)
@@ -715,6 +821,29 @@ def parse_holdings(raw):
         if re.fullmatch(r"[A-Z0-9]+(\.[A-Z]+)?", t):             # ignore « - » (liste vide) et les valeurs invalides
             out.add(t if "." in t else t + ".PA")
     return frozenset(out)
+
+
+def parse_positions(raw):
+    """HOLDINGS -> {ticker: [{t, c, tf, e, ts}]}. c : « S », « Fa » ou « O » (Autre) ; ticker simple = « O »."""
+    out = {}
+    for part in raw.replace(";", ",").replace("\n", ",").split(","):
+        f = part.strip().split(":")
+        t = f[0].strip().upper()
+        if not re.fullmatch(r"[A-Z0-9]+(\.[A-Z]+)?", t):
+            continue
+        t = t if "." in t else t + ".PA"
+        c = f[1] if len(f) > 1 and f[1] in ("S", "Fa", "O") else "O"
+        tf = f[2] if len(f) > 2 and f[2] in TF_ORDER else None
+        try:
+            e = float(f[3]) if len(f) > 3 and f[3] != "" else None
+        except ValueError:
+            e = None
+        try:
+            ts = int(f[4]) * 1000 if len(f) > 4 and f[4] != "" else None
+        except ValueError:
+            ts = None
+        out.setdefault(t, []).append({"t": t, "c": c, "tf": tf, "e": e, "ts": ts})
+    return out
 
 
 def choose_mode(now, holdings, env=None):
@@ -783,6 +912,7 @@ def main():
     topic = os.environ.get("NTFY_TOPIC", "").strip()
     app_url = default_app_url()
     holdings = parse_holdings(os.environ.get("HOLDINGS", ""))
+    positions = parse_positions(os.environ.get("HOLDINGS", ""))
 
     if args.test_push:
         if not topic:
@@ -805,7 +935,7 @@ def main():
             mode = "full"
     if mode == "held":
         print(f"Passage rapide : {len(holdings)} position(s) seulement.")
-        data, events = scan({}, download, now, args.min_turnover, holdings)
+        data, events = scan({}, download, now, args.min_turnover, holdings, positions)
         if data["stocks"]:
             data = merge_partial(prev, data)
         else:
@@ -817,7 +947,7 @@ def main():
             added = {t: n for t, n in listed.items() if t not in universe}
             universe.update(added)
             print(f"Liste Yahoo des actions de Paris : {len(listed)} valeurs, {len(added)} ajoutées à universe.csv ({len(universe)} au total).")
-        data, events = scan(universe, download, now, args.min_turnover, holdings)
+        data, events = scan(universe, download, now, args.min_turnover, holdings, positions)
 
     m = data["meta"]
     print(f"{m.get('analysed', len(data['stocks']))} actions analysées sur {m.get('universe', '?')} "
@@ -850,7 +980,7 @@ def main():
 
     seeding = not STATE_FILE.exists()
     state = json.loads(STATE_FILE.read_text(encoding="utf-8")) if not seeding else {}
-    state, sent = deliver(events, data, state, lambda t, msg, click, prio=3: ntfy_post(topic, t, msg, click, prio), app_url, seeding, holdings)
+    state, sent = deliver(events, data, state, lambda t, msg, click, prio=3: ntfy_post(topic, t, msg, click, prio), app_url, seeding, holdings, positions)
     STATE_FILE.write_text(json.dumps(state, indent=1, ensure_ascii=False, sort_keys=True), encoding="utf-8")
     print("Premier passage : état initial mémorisé, aucune notification envoyée." if seeding
           else f"{sent} notification(s) envoyée(s)." + (f" Actions détenues : {', '.join(sorted(holdings))}." if holdings else ""))

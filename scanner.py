@@ -76,6 +76,7 @@ AUTO_UNIVERSE = True       # True : à chaque passage, ajoute à universe.csv to
 S_WICK_MIN = 2             # S : dans toute la série de bougies de même sens, au moins S_WICK_MIN sans mèche (haute pour S haussière, basse pour S baissière) ; les autres peuvent en avoir
 S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture|) <= 10 % de la hauteur de la bougie HA
 MAX_PUSH_PER_RUN = 30     # au-delà : une seule notification récapitulative (ntfy.sh limite ~250 messages/jour)
+MA_TP = (20, 50, 100, 200)  # MM des objectifs (TP), calculées sur les clôtures classiques
 MIN_BARS = 25              # historique minimal pour calculer correctement les indicateurs
 SIM_PATHS = 400            # trajectoires Monte-Carlo par bougie en formation
 SIM_STEPS = 8
@@ -288,6 +289,25 @@ def simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, remaining, sigma, rng, 
 
 # ================================ Analyse d'une UT ================================
 
+def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur):
+    """Niveaux utiles à l'application pour les stops et objectifs (SL / TP) d'une position, sur cette unité de temps.
+    ma : MM7 (Heikin Ashi, comme la configuration) et MM20 / 50 / 100 / 200 des clôtures classiques ; tk / mm7_dn : Tenkan et pente
+    de la MM7 (pour « Fo dans l'UT supérieure ») ; low_prev : plus bas (mèche ou corps) de la dernière bougie HA clôturée ;
+    fa_body_low : bas du corps de la 1re bougie de la Fa en cours (sinon None)."""
+    close = df["Close"].to_numpy(dtype=float)
+    ma = {"7": round(float(mm[-1]), 3)}
+    for n in MA_TP:
+        ma[str(n)] = round(float(close[-n:].mean()), 3) if len(close) >= n else None
+    first = j if cur == 1 else None
+    return {
+        "ma": ma,
+        "tk": round(float(tk[-1]), 3),
+        "mm7_dn": bool(len(mm) > 1 and mm[-1] < mm[-2]),
+        "low_prev": round(float(hal[nc - 1]), 3),
+        "fa_body_low": round(float(min(hao[first], hac[first])), 3) if first is not None else None,
+    }
+
+
 def analyze_tf(df, tf, now_eff, rng):
     df = df.dropna(subset=["Open", "High", "Low", "Close"])
     if len(df) < MIN_BARS:
@@ -365,6 +385,8 @@ def analyze_tf(df, tf, now_eff, rng):
         "mm7": round(float(mm[nc - 1]), 3),
         "tenkan": round(float(tk[nc - 1]), 3),
         "events": events,
+        "buy": int(c[-1] * df["Volume"].iloc[-1]) if c[-1] > o[-1] and np.isfinite(df["Volume"].iloc[-1]) else 0,
+        "lv": levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur),
     }
     if forming:
         rets = np.diff(np.log(c[:nc]))[-100:]
@@ -457,6 +479,9 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
     no_data = [t for t in tickers if t not in daily]
     liquid = [t for t in tickers if t in daily and (t in holdings or turnover(daily[t]) >= min_turnover)]
     hourly = fetch(liquid, "3mo", "1h") if liquid else {}
+    held_liquid = [t for t in liquid if t in holdings]
+    if held_liquid:                                           # historique plus long pour la MM100 / MM200 en 4h des positions
+        hourly.update(fetch(held_liquid, "2y", "1h"))
     rng = np.random.default_rng(12345)
 
     stocks, events = {}, []
@@ -490,6 +515,9 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
             tfs[tf] = res
         if not tfs:
             continue
+        if t not in holdings and not any(e["ticker"] == t and e["kind"].endswith("~") for e in events):
+            for r in tfs.values():                           # niveaux SL / TP : seulement pour les positions et les actions en cours
+                r.pop("lv", None)
         closes = daily[t]["Close"]
         price = float(closes.iloc[-1])
         prev = float(closes.iloc[-2]) if len(closes) > 1 else price
@@ -679,10 +707,11 @@ def default_app_url():
 
 
 def parse_holdings(raw):
-    """Variable HOLDINGS : tickers séparés par des virgules (ex. « AIR.PA,MC.PA »)."""
+    """Variable HOLDINGS : positions séparées par des virgules, « AIR.PA:S:4h:171.5,MC.PA:Fa:1d » ou simplement « AIR.PA,MC.PA ».
+    Le scanner n'a besoin que des tickers ; la configuration, l'unité de temps et le prix d'entrée servent à l'application."""
     out = set()
     for t in raw.replace(";", ",").replace("\n", ",").split(","):
-        t = t.strip().upper()
+        t = t.strip().upper().split(":")[0]
         if re.fullmatch(r"[A-Z0-9]+(\.[A-Z]+)?", t):             # ignore « - » (liste vide) et les valeurs invalides
             out.add(t if "." in t else t + ".PA")
     return frozenset(out)
@@ -700,6 +729,36 @@ def choose_mode(now, holdings, env=None):
     if now.hour >= 17 and now.minute >= 50:
         return "full"
     return "full" if (now.minute // 15) % 2 == 0 else "held"
+
+
+SECTOR_FR = {"Technology": "Technologie", "Healthcare": "Santé", "Financial Services": "Finance", "Consumer Cyclical": "Conso cyclique",
+             "Consumer Defensive": "Conso défensive", "Industrials": "Industrie", "Basic Materials": "Matériaux", "Energy": "Énergie",
+             "Utilities": "Services publics", "Real Estate": "Immobilier", "Communication Services": "Communication"}
+SECTORS_FILE = HERE / "sectors.json"
+
+
+def apply_sectors(data, cache, lookup, limit=60):
+    """Ajoute le secteur à chaque action (cache sectors.json) ; en cherche jusqu'à `limit` nouveaux par passage via `lookup(ticker)`."""
+    todo = [t for t in data["stocks"] if t not in cache]
+    fails = 0
+    for t in todo[:limit]:
+        try:
+            sec = lookup(t)
+            fails = 0
+        except Exception:
+            sec, fails = None, fails + 1
+            if fails >= 5:                                   # Yahoo limite les requêtes : on réessaiera au prochain passage
+                break
+        if sec is not None:
+            cache[t] = SECTOR_FR.get(sec, sec or "Autres") if sec else "Autres"
+    for t, stock in data["stocks"].items():
+        stock["sector"] = cache.get(t, "Autres")
+    return cache
+
+
+def yahoo_sector(t):
+    import yfinance as yf
+    return (yf.Ticker(t).info or {}).get("sector") or ""
 
 
 def merge_partial(prev, data):
@@ -767,6 +826,15 @@ def main():
         print(f"Sans données ({len(m['no_data'])}) : " + ", ".join(m["no_data"][:60]) + (" …" if len(m["no_data"]) > 60 else ""), file=sys.stderr)
     if not data["stocks"]:
         sys.exit("Aucune donnée exploitable : data.json non modifié.")
+
+    try:
+        cache = json.loads(SECTORS_FILE.read_text(encoding="utf-8")) if SECTORS_FILE.exists() else {}
+    except Exception:
+        cache = {}
+    before = dict(cache)
+    cache = apply_sectors(data, cache, yahoo_sector, limit=60 if mode == "full" else 5)
+    if cache != before and not args.no_push:
+        SECTORS_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=0, sort_keys=True), encoding="utf-8")
 
     DATA_FILE.parent.mkdir(exist_ok=True)
     tmp = DATA_FILE.with_suffix(".tmp")

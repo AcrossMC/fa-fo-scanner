@@ -2,38 +2,50 @@
   "use strict";
 
   const TFS = [["1h", "1h"], ["4h", "4h"], ["1d", "1j"], ["1w", "1sem"], ["1mo", "1mois"]];
+  const TF_KEYS = TFS.map(([k]) => k);
+  const TF_LAB = Object.fromEntries(TFS);
   const TF_NAME = { "1h": "1 heure", "4h": "4 heures", "1d": "1 jour", "1w": "1 semaine", "1mo": "1 mois" };
+  const BAR_MS = { "1h": 36e5, "4h": 144e5, "1d": 864e5, "1w": 6048e5, "1mo": 2678e6 };
+  const TV_INT = { "1h": "60", "4h": "240", "1d": "D", "1w": "W", "1mo": "M" };
   const STATES = [["fa", "Fa"], ["s", 'S <i class="sq up"></i>']];
   const GH_VAR = "HOLDINGS";
+  const lowerTf = (k) => TF_KEYS[TF_KEYS.indexOf(k) - 1];
+  const higherTf = (k) => TF_KEYS[TF_KEYS.indexOf(k) + 1];
 
   let data = null;
   let investing = {};                       // docs/investing.json : ticker -> identifiant de page investing.com (facultatif)
+  let view = store("view") === "own" ? "own" : "scan";
   let tf = store("tf") || "1d";
   let st = store("st") === "s" ? "s" : "fa";
   let query = "";
-  let held = new Set(readList(store("held")));
+  let pos = loadPos();                      // positions : [{t, c: "S"|"Fa"|null, tf, e: prix d'entrée|null, ts}]
+  let draft = null;                         // entrée en cours de saisie : {t, c, tf}
   let token = store("gh_token") || "";
   let repo = store("gh_repo") || detectRepo();
 
   const $ = (id) => document.getElementById(id);
-  const tfTabs = $("tfTabs"), stTabs = $("stTabs"), list = $("list"), sheet = $("sheet"), backdrop = $("backdrop");
+  const tfTabs = $("tfTabs"), stTabs = $("stTabs"), viewTabs = $("viewTabs"), list = $("list"), sheet = $("sheet"), backdrop = $("backdrop");
 
   function store(k, v) {
     try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; }
   }
-  function readList(raw) { return (raw || "").split(",").map((x) => x.trim().toUpperCase()).filter((x) => /^[A-Z0-9]+(\.[A-Z]+)?$/.test(x)); }
   function detectRepo() {
     const h = location.hostname;
     return h.endsWith(".github.io") ? h.split(".")[0] + "/" + (location.pathname.split("/")[1] || "") : "";
   }
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const short = (t) => t.replace(/\.PA$/, "");
-  const fmtPrice = (p) => p.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
-  const fmtChg = (c) => (c > 0 ? "+" : "") + c.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+  const nf = (p, d = 2) => p.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtPrice = (p) => nf(p) + " €";
+  const fmtChg = (c) => (c > 0 ? "+" : "") + nf(c) + " %";
+  const fmtVs = (v, ref) => { const d = (v / ref - 1) * 100; return (d > 0 ? "+" : "") + nf(d, 1) + " %"; };
+  const fmtEur = (n) => (n >= 1e6 ? nf(n / 1e6, 1) + " M€" : n >= 1e3 ? Math.round(n / 1e3) + " k€" : Math.round(n) + " €");
   const pct = (p) => Math.round(p * 100) + " %";
   const sq = (dir) => `<i class="sq ${dir === "up" ? "up" : "down"}" aria-hidden="true"></i>`;
+  const dot = (state) => `<i class="dot ${state}" aria-hidden="true"></i>`;
   const sLabel = (s) => (s.dir === "up" ? "S haussière" : "S baissière");
   const sWhat = (s) => `bougie sans corps après ${s.n} bougie${s.n > 1 ? "s" : ""} ${s.dir === "up" ? "baissière" : "verte"}${s.n > 1 ? "s" : ""}`;
+  const isHeld = (t) => pos.some((p) => p.t === t);
 
   function fmtSince(iso, tfKey) {
     const d = new Date(iso);
@@ -44,141 +56,202 @@
     return d.toLocaleDateString("fr-FR", { ...o, month: "long", year: "numeric" });
   }
 
-  // ---- « En cours de validation » : la bougie en formation a une probabilité >= seuil de valider la configuration ----
-  const visibleTf = () => (data && data.meta.visible_tf) || ["4h", "1d", "1w", "1mo"];
-  const thr = (k, isHeld) => (isHeld && k === "1h" ? (data.meta.prob_min_held_1h ?? 0.5) : (data.meta.prob_min ?? 0.3));
-  function pend(r, k, isHeld) {
-    // fa / fo : pas déjà dans cet état ; su / sd : S haussière / baissière en formation
-    if (!r || !r.forming) return {};
-    const th = thr(k, isHeld), ok = (p) => (p != null && p >= th ? p : null);
-    return { fa: r.state !== "fa" ? ok(r.p_fa) : null, fo: r.state !== "fo" ? ok(r.p_fo) : null, su: ok(r.p_s_up), sd: ok(r.p_s_down) };
-  }
-  const tfList = () => TFS.filter(([k]) => (k === "1h" ? held.size > 0 : visibleTf().includes(k)));     // le 1h : uniquement si j'ai des positions
-
-  function rowsFor(tfKey, bucket) {
+  // ===================== Positions : stockage, format GitHub « TICKER:CONFIG:UT:PRIX:HORODATAGE » =====================
+  const posKey = (p) => `${p.t}|${p.c || ""}|${p.tf || ""}`;
+  function serialize(p) { return [p.t, p.c || "", p.tf || "", p.e == null ? "" : p.e, Math.round((p.ts || Date.now()) / 1000)].join(":"); }
+  function parsePos(raw) {
     const out = [];
-    for (const [t, s] of Object.entries(data.stocks)) {
-      const isHeld = held.has(t);
-      if (!isHeld && !visibleTf().includes(tfKey)) continue;           // actions non détenues : 4h, 1j, 1sem, 1mois seulement
-      const r = s.tf[tfKey];
-      const p = pend(r, tfKey, isHeld)[bucket === "fa" ? "fa" : "su"];
-      if (p != null) out.push([t, s, r, p]);
+    for (const part of (raw || "").replace(/[;\n]/g, ",").split(",")) {
+      const f = part.trim().split(":");
+      const t0 = (f[0] || "").toUpperCase();
+      if (!/^[A-Z0-9]+(\.[A-Z]+)?$/.test(t0)) continue;
+      const c = f[1] === "S" || f[1] === "Fa" ? f[1] : null;
+      const k = TF_KEYS.includes(f[2]) ? f[2] : null;
+      const e = f[3] !== undefined && f[3] !== "" && isFinite(+f[3]) ? +f[3] : null;
+      const ts = f[4] && isFinite(+f[4]) ? +f[4] * 1000 : Date.now();
+      out.push({ t: t0.includes(".") ? t0 : t0 + ".PA", c, tf: k, e, ts });
     }
-    out.sort((a, b) => b[3] - a[3]);                                   // probabilité décroissante
-    return out.sort((a, b) => held.has(b[0]) - held.has(a[0]));        // mes positions toujours en premier (tri stable)
+    return out;
+  }
+  function loadPos() {
+    try { const raw = store("pos"); if (raw) return JSON.parse(raw); } catch (e) { /* rien */ }
+    return parsePos(store("held") || "");                    // ancienne version : simples tickers
+  }
+  function savePos() { store("pos", JSON.stringify(pos)); }
+
+  // ===================== Stops (SL) et objectifs (TP) d'une position =====================
+  // S : SL = la plus haute de deux valeurs : plus bas (mèche ou corps) de la bougie HA précédente, ou bas du corps de la 1re bougie
+  //     de la Fa en cours dans l'UT inférieure. Fa : pas de SL, sortie par un TP ou par un Fo dans la même UT.
+  // S devenue Fa dans la même UT (Fa apparue après l'entrée) : plus de SL, sorties de la Fa.
+  // TP : MM7 (HA), MM20/50/100/200 (classiques) de la même UT, ou « Fo » de l'UT supérieure : Tenkan, MM7 si baissière.
+  function plan(p, s) {
+    if (!p.c || !p.tf) return { incomplete: true };
+    const r = s.tf[p.tf];
+    if (!r || !r.lv) return { pending: true };
+    const price = s.price;
+    let mode = p.c, converted = false;
+    if (p.c === "S" && r.state === "fa" && new Date(r.since).getTime() + BAR_MS[p.tf] > p.ts) { mode = "Fa"; converted = true; }
+    let sl = null;
+    if (mode === "S") {
+      const a = { v: r.lv.low_prev, label: `Plus bas (mèche ou corps) de la bougie précédente, ${TF_LAB[p.tf]}` };
+      const lo = lowerTf(p.tf), lr = lo && s.tf[lo];
+      const b = lr && lr.state === "fa" && lr.lv && lr.lv.fa_body_low != null
+        ? { v: lr.lv.fa_body_low, label: `Bas du corps de la 1re bougie de la Fa en cours, ${TF_LAB[lo]}` } : null;
+      const best = b && b.v > a.v ? b : a, other = best === a ? b : a;
+      sl = { v: best.v, label: best.label, other: other || null };
+    }
+    const cands = [];
+    for (const k of ["7", "20", "50", "100", "200"]) {
+      const v = r.lv.ma[k];
+      if (v != null) cands.push({ v, label: `MM${k} ${TF_LAB[p.tf]}`, kind: "MM" });
+    }
+    const hi = higherTf(p.tf), hr = hi && s.tf[hi];
+    if (hr && hr.lv) {
+      cands.push({ v: hr.lv.tk, label: `Fo ${TF_LAB[hi]} : Tenkan ${TF_LAB[hi]}`, kind: "Fo" });
+      if (hr.lv.mm7_dn && hr.lv.ma["7"] != null) cands.push({ v: hr.lv.ma["7"], label: `Fo ${TF_LAB[hi]} : MM7 baissière ${TF_LAB[hi]}`, kind: "Fo" });
+    }
+    cands.sort((x, y) => x.v - y.v);
+    const tps = cands.filter((c) => c.v > price).slice(0, 5);
+    const passed = p.e != null ? cands.filter((c) => c.v > p.e && c.v <= price) : [];
+    const reasons = [];
+    if (sl && price <= sl.v) reasons.push("Stop loss atteint : le cours est sous le SL");
+    if (mode === "Fa" && r.state === "fo") reasons.push(`Fo en ${TF_LAB[p.tf]} : la Fa est terminée`);
+    if (passed.length) reasons.push("TP franchi : " + passed.map((c) => c.label).join(", "));
+    return { mode, converted, sl, tps, passed, reasons, price };
+  }
+  const modeLabel = (p, pl) => (p.c ? (pl && pl.converted ? "S → Fa" : p.c === "S" ? "S" : "Fa") + " · " + TF_LAB[p.tf] : "à préciser");
+
+  // ===================== Scanner : « en cours de validation », classé par volume d'achat du secteur =====================
+  const visibleTf = () => (data && data.meta.visible_tf) || ["4h", "1d", "1w", "1mo"];
+  const thr = () => (data.meta.prob_min ?? 0.3);
+  function pend(r) {
+    if (!r || !r.forming) return {};
+    const ok = (p) => (p != null && p >= thr() ? p : null);
+    return { fa: r.state !== "fa" ? ok(r.p_fa) : null, su: ok(r.p_s_up) };
+  }
+  function sectorBuy(tfKey) {
+    const m = {};
+    for (const s of Object.values(data.stocks)) {
+      const r = s.tf[tfKey];
+      if (r && r.buy) m[s.sector || "Autres"] = (m[s.sector || "Autres"] || 0) + r.buy;
+    }
+    return m;
+  }
+  function rowsFor(tfKey, bucket) {
+    const sb = sectorBuy(tfKey), out = [];
+    for (const [t, s] of Object.entries(data.stocks)) {
+      const r = s.tf[tfKey];
+      const p = pend(r)[bucket === "fa" ? "fa" : "su"];
+      if (p != null) out.push({ t, s, r, p, sec: s.sector || "Autres", secBuy: sb[s.sector || "Autres"] || 0, buy: r.buy || 0 });
+    }
+    return out.sort((a, b) => b.secBuy - a.secBuy || (a.sec < b.sec ? -1 : a.sec > b.sec ? 1 : 0) || b.buy - a.buy || b.p - a.p);
   }
 
+  function renderViews() {
+    viewTabs.innerHTML = `<button role="tab" data-view="scan" aria-selected="${view === "scan"}">Scanner</button>`
+      + `<button role="tab" data-view="own" aria-selected="${view === "own"}">Possédées<span class="count">${pos.length}</span></button>`;
+    for (const id of ["tfTabs", "stTabs", "searchWrap"]) $(id).hidden = view !== "scan";
+  }
   function renderTabs() {
-    if (!tfList().some(([k]) => k === tf)) tf = tfList()[0][0];
-    tfTabs.innerHTML = tfList().map(([k, l]) => `<button role="tab" data-tf="${k}" aria-selected="${k === tf}">${l}</button>`).join("");
+    const tl = TFS.filter(([k]) => visibleTf().includes(k));
+    if (!tl.some(([k]) => k === tf)) tf = tl.some(([k]) => k === "1d") ? "1d" : tl[0][0];
+    tfTabs.innerHTML = tl.map(([k, l]) => `<button role="tab" data-tf="${k}" aria-selected="${k === tf}">${l}</button>`).join("");
     stTabs.innerHTML = STATES.map(([k, l]) => {
       const n = data ? rowsFor(tf, k).length : 0;
       return `<button role="tab" data-st="${k}" aria-selected="${k === st}">${l}<span class="count">${n}</span></button>`;
     }).join("");
   }
 
-  const dot = (state) => `<i class="dot ${state}" aria-hidden="true"></i>`;
-  const stateWord = (r) => (r.state === "fa" ? "Fa validé" : r.state === "fo" ? "Fo" : "neutre");
-
   const pb = (html, p, cls) => `<span class="pb ${cls}">${html}${p != null ? " " + pct(p) : ""}</span>`;
-
-  // Carte d'une liste : probabilité pour l'unité de temps affichée + autres unités de temps où l'action est aussi « en cours »
-  function otherChips(t, s) {
-    const isHeld = held.has(t);
-    return tfList().filter(([k]) => k !== tf).map(([k, l]) => {
-      const p = pend(s.tf[k], k, isHeld)[st === "fa" ? "fa" : "su"];
+  function otherChips(s) {
+    return TFS.filter(([k]) => k !== tf && visibleTf().includes(k)).map(([k, l]) => {
+      const p = pend(s.tf[k])[st === "fa" ? "fa" : "su"];
       return p == null ? "" : `<span class="chip"><b>${l}</b>${st === "fa" ? dot("fa") : sq("up")}<span>${pct(p)}</span></span>`;
     }).join("");
   }
-
-  function card(t, s, r, p) {
-    const isHeld = held.has(t);
+  function card(row) {
+    const { t, s, r, p } = row;
     const over = st === "fa" && r.over && r.over.fa;
-    const others = otherChips(t, s);
-    return `<button class="card ${st === "s" ? "sup" : "pending"}${isHeld ? " held" : ""}" data-t="${esc(t)}">
-      <div class="row"><span class="left">${isHeld ? '<span class="star" aria-label="En position">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
+    const others = otherChips(s);
+    return `<button class="card ${st === "s" ? "sup" : "pending"}${isHeld(t) ? " held" : ""}" data-t="${esc(t)}">
+      <div class="row"><span class="left">${isHeld(t) ? '<span class="star" aria-label="En position">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
       <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
+      <div class="secline"><span class="secbadge">${esc(row.sec)}</span><span class="muted">achats secteur ${fmtEur(row.secBuy)} · action ${fmtEur(row.buy)}</span></div>
       <div class="pline"><span class="pbig">${st === "fa" ? dot("fa") : sq("up")}<b>${pct(p)}</b></span>
         <span class="pbar"><i class="${p >= (data.meta.prob_high ?? 0.6) ? "fa" : "mid"}" style="width:${Math.max(p * 100, 2)}%"></i></span>
         ${over ? '<span class="over">déjà au-dessus</span>' : ""}</div>
       ${others ? `<div class="chips">${others}</div>` : ""}</button>`;
   }
-
-  const LEGEND = `<div class="legend">${dot("fa")} Fa en cours ${sq("up")} S haussière en cours<span class="muted" style="width:100%">Pourcentage = chance que la bougie en formation clôture avec cette configuration. Touchez une action pour le détail.</span></div>`;
+  const LEGEND = `<div class="legend">${dot("fa")} Fa en cours ${sq("up")} S haussière en cours<span class="muted" style="width:100%">Classées par volume d'achat du secteur (montant échangé sur les bougies haussières de l'unité de temps), puis par action. Pourcentage = chance que la bougie en formation valide la configuration.</span></div>`;
 
   function renderList() {
     if (!data || !Object.keys(data.stocks).length) {
       list.innerHTML = `<div class="empty">En attente de la première analyse.<br>Lancez le workflow « Scan Fa/Fo » sur GitHub.</div>`;
       return;
     }
+    if (view === "own") { renderOwned(); return; }
     const q = query.trim().toLowerCase();
-    if (q) { renderSearch(q); return; }          // recherche : toutes les actions suivies, pas seulement celles « en cours »
-    let rows = rowsFor(tf, st);
+    if (q) { renderSearch(q); return; }
+    const rows = rowsFor(tf, st);
     if (!rows.length) {
       const msg = { fa: "Aucune Fa en cours de validation", s: "Aucune S haussière en cours de validation" }[st];
       list.innerHTML = `<div class="empty">${msg} en ${esc(TF_NAME[tf])}.</div>`;
       return;
     }
-    list.innerHTML = LEGEND + rows.map(([t, s, r, p]) => card(t, s, r, p)).join("");
+    list.innerHTML = LEGEND + rows.map(card).join("");
   }
 
-  // ---- Recherche : retrouver n'importe quelle action suivie, ou ajouter une action absente de la liste comme position ----
+  // ---- Recherche : retrouver n'importe quelle action suivie, ou en ajouter une absente de la liste ----
   function candidateTicker(q) {
     const t = q.trim().toUpperCase().replace(/\s+/g, "");
     if (!/^[A-Z0-9][A-Z0-9\-]{0,9}(\.[A-Z]{1,3})?$/.test(t)) return null;
     if (t.includes(".") && !t.endsWith(".PA")) return null;   // le scanner suit uniquement Euronext Paris (horaires 9h-17h35)
-    return t.includes(".") ? t : t + ".PA";                 // sans suffixe : action de Paris
+    return t.includes(".") ? t : t + ".PA";
   }
   function renderSearch(q) {
     const hits = Object.entries(data.stocks)
       .filter(([t, s]) => t.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
-      .sort((a, b) => held.has(b[0]) - held.has(a[0]) || a[0].localeCompare(b[0])).slice(0, 30);
-    let html = hits.map(([t, s]) => `<button class="card${held.has(t) ? " held" : ""}" data-t="${esc(t)}">
-      <div class="row"><span class="left">${held.has(t) ? '<span class="star">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
+      .sort((a, b) => isHeld(b[0]) - isHeld(a[0]) || a[0].localeCompare(b[0])).slice(0, 30);
+    let html = hits.map(([t, s]) => `<button class="card${isHeld(t) ? " held" : ""}" data-t="${esc(t)}">
+      <div class="row"><span class="left">${isHeld(t) ? '<span class="star">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
       <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div></button>`).join("");
     const cand = candidateTicker(query);
     if (cand && !data.stocks[cand]) {
-      html += held.has(cand)
-        ? `<div class="card held nodata"><span class="tick">${esc(short(cand))}</span><span class="muted"> · en position, analyse au prochain passage (15 min au plus)</span></div>`
-        : `<div class="card addcard"><div><b>${esc(cand)}</b> n'est pas dans la liste suivie.</div>
-           <button class="posbtn" data-add="${esc(cand)}">☆ J'ai cette action : l'ajouter à mes positions</button>
-           <div class="muted small">Code Yahoo Finance d'une action de Paris (ex. ALCLS.PA). Sans suffixe, « .PA » est ajouté. Analyse dès le prochain passage, comme les autres actions.</div></div>`;
+      html += `<div class="card addcard"><div><b>${esc(cand)}</b> n'est pas dans la liste suivie.</div>
+        <button class="posbtn" data-add="${esc(cand)}">☆ J'entre sur cette action (l'ajouter aux possédées)</button>
+        <div class="muted small">Code Yahoo Finance d'une action de Paris (ex. ALCLS.PA). Sans suffixe, « .PA » est ajouté. Analyse dès le prochain passage, comme les autres actions.</div></div>`;
     }
     list.innerHTML = html || `<div class="empty">Aucune action ne correspond à « ${esc(query.trim())} ».</div>`;
   }
 
-  // ---- Bloc « Mes positions' (toujours en haut) : toutes les unités de temps, danger (Fo, S baissière) comprises ----
-  function posChips(t, s) {
-    return TFS.map(([k, l]) => {
-      const r = s.tf[k];
-      if (!r) return `<span class="chip"><b>${l}</b><i class="dot none" aria-hidden="true"></i></span>`;
-      const p = pend(r, k, true);
-      let h = dot(r.state);
-      if (r.s && r.s.active) h += sq(r.s.dir);
-      if (p.fa != null) h += pb(dot("fa"), p.fa, "fa");
-      if (p.fo != null) h += pb(dot("fo"), p.fo, "danger");
-      if (p.su != null) h += pb(sq("up"), p.su, "fa");
-      if (p.sd != null) h += pb(sq("down"), p.sd, "danger");
-      const danger = r.state === "fo" || (r.s && r.s.active && r.s.dir === "down") || p.fo != null || p.sd != null;
-      return `<span class="chip${danger ? " danger" : ""}"><b>${l}</b>${h}</span>`;
-    }).join("");
-  }
-
-  function renderPositions() {
-    const el = $("positions");
-    if (!data || !held.size) { el.hidden = true; el.innerHTML = ""; return; }
-    const open = el.dataset.open !== "0";
-    const cards = [...held].sort().map((t) => {
-      const s = data.stocks[t];
-      if (!s) return `<div class="card held nodata"><span class="tick">${esc(short(t))}</span><span class="muted"> · analyse au prochain passage (15 min au plus)</span></div>`;
-      return `<button class="card held pos" data-t="${esc(t)}">
-        <div class="row"><span class="left"><span class="star">⭐</span><span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
+  // ===================== Possédées =====================
+  function renderOwned() {
+    if (!pos.length) {
+      list.innerHTML = `<div class="empty">Aucune action possédée.<br>Dans le Scanner, touchez une action puis choisissez S ou Fa, et l'unité de temps de votre entrée.</div>`;
+      return;
+    }
+    const cards = [...pos].sort((a, b) => b.ts - a.ts).map((p) => {
+      const s = data.stocks[p.t];
+      const name = s ? s.name : "";
+      if (!s) return `<div class="card held nodata"><span class="tick">${esc(short(p.t))}</span><span class="muted"> · ${esc(modeLabel(p))} · analyse au prochain passage (15 min au plus)</span></div>`;
+      const pl = plan(p, s);
+      let body = "";
+      if (pl.incomplete) body = `<div class="muted small">Entrée à préciser (configuration et unité de temps).</div>`;
+      else if (pl.pending) body = `<div class="muted small">Niveaux SL / TP calculés au prochain passage (15 min au plus).</div>`;
+      else {
+        body += pl.sl ? `<div class="lvl"><b>SL</b> ${fmtPrice(pl.sl.v)} <span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>`
+                      : `<div class="lvl muted">Pas de SL : sortie par un TP ou un Fo ${TF_LAB[p.tf]}</div>`;
+        body += pl.tps.length ? `<div class="lvl"><b>TP</b> ${esc(pl.tps[0].label)} ${fmtPrice(pl.tps[0].v)} <span class="muted">${fmtVs(pl.tps[0].v, s.price)}</span></div>` : "";
+        if (pl.reasons.length) body += `<div class="banner">Sortie signalée : ${esc(pl.reasons.join(" · "))}</div>`;
+      }
+      const pnl = p.e != null ? ` · entrée ${fmtPrice(p.e)} <span class="${s.price >= p.e ? "up" : "down"}">${fmtVs(s.price, p.e)}</span>` : "";
+      return `<button class="card held pos" data-pos="${esc(posKey(p))}">
+        <div class="row"><span class="left"><span class="star">⭐</span><span class="tick">${esc(short(p.t))}</span><span class="name">${esc(name)}</span></span>
         <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
-        <div class="chips">${posChips(t, s)}</div></button>`;
+        <div class="secline"><span class="secbadge modebadge">${esc(modeLabel(p, p.c && !p.incomplete ? plan(p, s) : null))}</span><span class="muted">${esc(s.sector || "")}${pnl}</span></div>
+        ${body}</button>`;
     }).join("");
-    el.hidden = false;
-    el.innerHTML = `<button class="sec" id="posToggle" aria-expanded="${open}"><span>⭐ Mes positions <span class="count">${held.size}</span></span><span aria-hidden="true">${open ? "▾" : "▸"}</span></button>`
-      + `<div class="pos-list" ${open ? "" : "hidden"}>${cards}</div>`;
+    list.innerHTML = cards;
   }
 
   function renderHead() {
@@ -192,63 +265,130 @@
     $("foot").innerHTML = `${m.analysed} actions analysées sur ${m.universe} (liquidité minimale requise). Cours différés d'environ ${m.delay_min} min.<br>`
       + `Fa en cours : la bougie Heikin Ashi en formation peut encore clôturer avec le haut du corps au-dessus de la Tenkan et d'une MM7 ascendante ; ${pct(m.prob_min ?? 0.3)} minimum, hors actions déjà en Fa. `
       + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières dont au moins 2 sans mèche haute. `
-      + `Pour vos positions ⭐ : toutes les unités de temps (1h comprise, seuil ${pct(m.prob_min_held_1h ?? 0.5)}), avec Fo et ${sq("down")} S baissière. `
-      + `Le pourcentage est une estimation statistique, pas une prévision. Information indicative, pas un conseil en investissement.`;
+      + `Le pourcentage est une estimation statistique, pas une prévision. Les stops et objectifs sont des repères calculés d'après vos règles, pas des ordres. Information indicative, pas un conseil en investissement.`;
   }
 
-  function render() { renderPositions(); renderTabs(); renderList(); }
+  function render() { renderViews(); renderTabs(); renderList(); }
 
-  // ---- Fiche état des lieux ----
-  function openSheet(t) {
-    const s = data && data.stocks[t];
-    if (!s) return;
-    const isHeld = held.has(t);
-    const probRow = (marker, label, p, cls) => {
-      const v = p > 0 && Math.round(p * 100) === 0 ? "< 1 %" : pct(p);
-      return `<div class="prob${p < 0.05 ? " low" : ""}"><span class="pl">${marker}${label}</span><span class="pbar"><i class="${cls}" style="width:${Math.max(p * 100, p > 0 ? 2 : 0)}%"></i></span><span class="pv">${v}</span></div>`;
-    };
-    const rows = TFS.filter(([k]) => isHeld || visibleTf().includes(k)).map(([k, l]) => {
+  // ===================== Fiches =====================
+  const probRow = (marker, label, p, cls) => {
+    const v = p > 0 && Math.round(p * 100) === 0 ? "< 1 %" : pct(p);
+    return `<div class="prob${p < 0.05 ? " low" : ""}"><span class="pl">${marker}${label}</span><span class="pbar"><i class="${cls}" style="width:${Math.max(p * 100, p > 0 ? 2 : 0)}%"></i></span><span class="pv">${v}</span></div>`;
+  };
+  function tfRows(s, held) {
+    return TFS.filter(([k]) => held || visibleTf().includes(k)).map(([k, l]) => {
       const r = s.tf[k];
       if (!r) return `<div class="tf-row"><div class="tf-head"><span class="lab">${l}</span><span class="muted">Pas assez d'historique</span></div></div>`;
-      const b = { s: !!(r.s && r.s.active) };
+      const hasS = !!(r.s && r.s.active);
       let pills = `<span class="pill ${r.state}">${dot(r.state)}${r.state === "fa" ? "Fa validé" : r.state === "fo" ? "Fo" : "Fa non validé"}</span>`;
-      if (b.s) pills += `<span class="sqpill ${r.s.dir}">${sq(r.s.dir)}${sLabel(r.s)}</span>`;
+      if (hasS) pills += `<span class="sqpill ${r.s.dir}">${sq(r.s.dir)}${sLabel(r.s)}</span>`;
       let info = "";
       if (r.state !== "none") info += `<div class="since">${r.state === "fa" ? "Fa" : "Fo"} depuis ${esc(fmtSince(r.since, k))} · ${r.bars} bougie${r.bars > 1 ? "s" : ""}</div>`;
-      if (b.s) info += `<div class="since">${sLabel(r.s)} : ${sWhat(r.s)}</div>`;
+      if (hasS) info += `<div class="since">${sLabel(r.s)} : ${sWhat(r.s)}</div>`;
       let probs;
       if (r.forming && r.p_fa != null) {
         probs = `<div class="probs"><div class="ptitle">À la clôture de la bougie en cours</div>`
-          + (isHeld
+          + (held
             ? (r.state === "fa"
               ? probRow(dot("fa"), "Fa maintenu", Math.max(0, 1 - r.p_fo), "fa") + probRow(dot("fo"), "Invalidation Fo", r.p_fo, "fo")
               : r.state === "fo"
                 ? probRow(dot("fo"), "Fo maintenu", Math.max(0, 1 - r.p_fa), "fo") + probRow(dot("fa"), "Validation Fa", r.p_fa, "fa")
                 : probRow(dot("fa"), "Validation Fa", r.p_fa, "fa") + probRow(dot("fo"), "Validation Fo", r.p_fo, "fo"))
-            : (r.state === "fa" ? `<div class="since">Déjà en Fa : suivi seulement pour les positions.</div>` : probRow(dot("fa"), "Validation Fa", r.p_fa, "fa")))
+            : (r.state === "fa" ? `<div class="since">Déjà en Fa.</div>` : probRow(dot("fa"), "Validation Fa", r.p_fa, "fa")))
           + (r.p_s_up > 0 ? probRow(sq("up"), "S haussière", r.p_s_up, "fa") : "")
-          + (isHeld && r.p_s_down > 0 ? probRow(sq("down"), "S baissière", r.p_s_down, "fo") : "") + `</div>`;
+          + (held && r.p_s_down > 0 ? probRow(sq("down"), "S baissière", r.p_s_down, "fo") : "") + `</div>`;
       } else {
         probs = `<div class="probs"><div class="ptitle muted">${r.forming ? "Probabilités indisponibles" : "Marché fermé : la prochaine bougie s'ouvre à la reprise"}</div></div>`;
       }
       return `<div class="tf-row"><div class="tf-head"><span class="lab">${l}</span><span class="what">${pills}</span></div>${info}${probs}</div>`;
     }).join("");
-    // Boutons graphique : même unité de temps que l'onglet ouvert (TradingView) ; Investing.com : page de l'action (voir docs/investing.json)
-    const TV_INT = { "1h": "60", "4h": "240", "1d": "D", "1w": "W", "1mo": "M" };
-    const tv = "https://www.tradingview.com/chart/?symbol=" + encodeURIComponent("EURONEXT:" + short(t)) + "&interval=" + TV_INT[tf];
+  }
+
+  // Boutons graphique. TradingView « application » : page de l'action (s'ouvre dans l'application installée, sur la bonne action) ;
+  // « graphique » : lien web avec l'unité de temps. Investing.com : page de l'action (voir docs/investing.json).
+  function chartLinks(t, name, k) {
+    const sym = short(t);
+    const tvApp = `https://www.tradingview.com/symbols/EURONEXT-${encodeURIComponent(sym)}/`;
+    const tvChart = "https://www.tradingview.com/chart/?symbol=" + encodeURIComponent("EURONEXT:" + sym) + "&interval=" + TV_INT[k];
     const slug = investing[t];
-    const inv = slug ? `https://www.investing.com/equities/${slug}-chart` : "https://www.investing.com/search/?q=" + encodeURIComponent(s.name);
-    sheet.innerHTML = `<div class="sheet-head"><div><h2 id="sheetTitle">${isHeld ? "⭐ " : ""}${esc(short(t))}</h2>
-      <div class="sub">${esc(s.name)} · ${fmtPrice(s.price)} · ${fmtChg(s.chg)}</div></div>
-      <button class="close" id="closeSheet" aria-label="Fermer">✕</button></div>
-      <button class="posbtn${isHeld ? " on" : ""}" id="posBtn" data-t="${esc(t)}">${isHeld ? "⭐ En position · retirer" : "☆ J'ai cette action"}</button>
-      <div class="tf-table">${rows}</div>
-      <a class="link" href="${tv}" target="_blank" rel="noopener">Graphique ${esc(TF_NAME[tf])} · TradingView</a>
-      <a class="link alt" href="${inv}" target="_blank" rel="noopener">${slug ? "Page Investing.com" : "Chercher sur Investing.com"} (régler ${esc(TF_NAME[tf])} sur place)</a>
-      <p class="note">Fa = démarre quand le haut du corps Heikin Ashi clôturé dépasse la Tenkan et une MM7 ascendante, dure jusqu'au Fo · Fo = le bas du corps passe sous les deux · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
+    const inv = slug ? `https://www.investing.com/equities/${slug}-chart` : "https://www.investing.com/search/?q=" + encodeURIComponent(name);
+    return `<a class="link" href="${tvApp}" target="_blank" rel="noopener">TradingView : ouvrir ${esc(sym)} (application)</a>
+      <a class="link alt" href="${tvChart}" target="_blank" rel="noopener">TradingView : graphique ${esc(TF_NAME[k])} (web)</a>
+      <button class="link alt" data-copy="EURONEXT:${esc(sym)}" style="width:100%;border:1px solid var(--line);cursor:pointer">Copier le symbole EURONEXT:${esc(sym)}</button>
+      <a class="link alt" href="${inv}" target="_blank" rel="noopener">${slug ? "Page Investing.com" : "Chercher sur Investing.com"} (régler ${esc(TF_NAME[k])} sur place)</a>`;
+  }
+  const sheetHead = (title, sub) => `<div class="sheet-head"><div><h2 id="sheetTitle">${title}</h2><div class="sub">${sub}</div></div><button class="close" id="closeSheet" aria-label="Fermer">✕</button></div>`;
+
+  // ---- Fiche d'une action du Scanner : état des lieux + choix de l'entrée ----
+  function openSheet(t) {
+    const s = data && data.stocks[t];
+    if (!s) { if (isHeld(t)) return; openUnknown(t); return; }
+    if (!draft || draft.t !== t) draft = { t, c: null, tf: null };
+    sheet.innerHTML = sheetHead(`${isHeld(t) ? "⭐ " : ""}${esc(short(t))}`, `${esc(s.name)} · ${fmtPrice(s.price)} · ${fmtChg(s.chg)}${s.sector ? " · " + esc(s.sector) : ""}`)
+      + `<div id="entryBox" class="entry"></div>`
+      + `<div class="tf-table">${tfRows(s, isHeld(t))}</div>` + chartLinks(t, s.name, tf)
+      + `<p class="note">Fa = démarre quand le haut du corps Heikin Ashi clôturé dépasse la Tenkan et une MM7 ascendante, dure jusqu'au Fo · Fo = le bas du corps passe sous la Tenkan et une MM7 descendante · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
+    renderEntry();
     showSheet();
     if (!location.hash.slice(1).toUpperCase().startsWith(t)) history.replaceState(null, "", "#" + t);
   }
+  function openUnknown(t) {
+    if (!draft || draft.t !== t) draft = { t, c: null, tf: null };
+    sheet.innerHTML = sheetHead(esc(short(t)), "Action absente de la liste suivie : analysée dès le prochain passage")
+      + `<div id="entryBox" class="entry"></div>`;
+    renderEntry(); showSheet();
+  }
+  function renderEntry() {
+    const box = $("entryBox"); if (!box || !draft) return;
+    const ch = (attr, val, html, on) => `<button class="chbtn${on ? " on" : ""}" ${attr}="${val}">${html}</button>`;
+    let h = `<h3>J'entre sur cette action</h3><div class="choices two">`
+      + ch("data-c", "S", `${sq("up")} S haussière`, draft.c === "S") + ch("data-c", "Fa", `${dot("fa")} Fa`, draft.c === "Fa") + `</div>`;
+    if (draft.c) {
+      h += `<h3>Unité de temps de l'entrée</h3><div class="choices five">`
+        + TFS.map(([k, l]) => ch("data-etf", k, l, draft.tf === k)).join("") + `</div>`;
+    }
+    if (draft.c && draft.tf) {
+      h += `<label class="field" for="entryPx">Prix d'entrée (facultatif)</label><input class="text" id="entryPx" inputmode="decimal" autocomplete="off" placeholder="ex. 36,50">`
+        + `<button class="link" id="entryOk" style="width:100%;border:0;cursor:pointer;margin-top:12px">Ajouter aux possédées · ${draft.c} ${TF_LAB[draft.tf]}</button>`;
+    }
+    box.innerHTML = h;
+  }
+
+  // ---- Fiche d'une position : SL, 5 TP, règles de sortie ----
+  function openPosSheet(key) {
+    const p = pos.find((x) => posKey(x) === key);
+    if (!p) return;
+    const s = data && data.stocks[p.t];
+    if (!s) { sheet.innerHTML = sheetHead("⭐ " + esc(short(p.t)), "Analyse au prochain passage") + posActions(key); showSheet(); return; }
+    const pl = plan(p, s);
+    let h = sheetHead(`⭐ ${esc(short(p.t))}`, `${esc(s.name)} · ${fmtPrice(s.price)} · ${fmtChg(s.chg)}${s.sector ? " · " + esc(s.sector) : ""}`);
+    h += `<div class="plan"><div class="planhead"><span class="secbadge modebadge">${esc(modeLabel(p, pl.incomplete || pl.pending ? null : pl))}</span>`
+      + `<span class="muted">${p.e != null ? `entrée ${fmtPrice(p.e)} · <span class="${s.price >= p.e ? "up" : "down"}">${fmtVs(s.price, p.e)}</span>` : "prix d'entrée non renseigné"}</span></div>`;
+    if (pl.incomplete) h += `<p class="note">Entrée à préciser : retirez cette ligne puis entrez depuis le Scanner (S ou Fa, puis l'unité de temps).</p>`;
+    else if (pl.pending) h += `<p class="note">Les niveaux SL / TP seront calculés au prochain passage (15 minutes au plus).</p>`;
+    else {
+      if (pl.reasons.length) h += `<div class="banner">Sortie signalée : ${esc(pl.reasons.join(" · "))}</div>`;
+      if (pl.converted) h += `<p class="note">La S est devenue une Fa en ${TF_LAB[p.tf]} : le stop loss de la S est retiré, les sorties sont celles de la Fa en cours.</p>`;
+      if (pl.sl) {
+        h += `<h3>Stop loss (en séance)</h3><div class="lvrow"><span class="lv-v">${fmtPrice(pl.sl.v)}</span><span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>`
+          + `<div class="since">${esc(pl.sl.label)}</div>`
+          + (pl.sl.other ? `<div class="since muted">Autre valeur examinée : ${fmtPrice(pl.sl.other.v)} (${esc(pl.sl.other.label)}), plus basse.</div>`
+            : `<div class="since muted">Pas de 2e valeur : aucune Fa en cours dans l'unité de temps inférieure${lowerTf(p.tf) ? "" : " (pas d'unité inférieure)"}.</div>`);
+      } else {
+        h += `<h3>Stop loss</h3><div class="since">Pas de SL pour une Fa : sortie par un TP, ou quand l'action bascule en Fo en ${TF_LAB[p.tf]}.</div>`
+          + `<div class="since">État ${TF_LAB[p.tf]} : <span class="pill ${s.tf[p.tf].state}">${dot(s.tf[p.tf].state)}${s.tf[p.tf].state === "fa" ? "Fa validé" : s.tf[p.tf].state === "fo" ? "Fo" : "Fa non validé"}</span></div>`;
+      }
+      h += `<h3>Take profit (du plus petit au plus grand)</h3>`;
+      if (pl.passed.length) h += `<div class="since muted">Déjà franchis depuis l'entrée : ${esc(pl.passed.map((c) => c.label + " " + fmtPrice(c.v)).join(", "))}</div>`;
+      h += pl.tps.length
+        ? pl.tps.map((c, i) => `<div class="lvrow"><span class="tpn">TP${i + 1}</span><span class="lv-v">${fmtPrice(c.v)}</span><span class="tptype ${c.kind === "Fo" ? "fo" : ""}">${esc(c.label)}</span><span class="muted">${fmtVs(c.v, s.price)}</span></div>`).join("")
+        : `<div class="since">Aucun niveau au-dessus du cours actuel.</div>`;
+    }
+    h += `</div>` + posActions(key) + `<div class="tf-table">${tfRows(s, true)}</div>` + chartLinks(p.t, s.name, p.tf || tf);
+    sheet.innerHTML = h; showSheet();
+  }
+  const posActions = (key) => `<div class="posacts"><button class="posbtn" data-edit="${esc(key)}">Modifier le prix d'entrée</button><button class="posbtn on" data-sell="${esc(key)}">J'ai vendu : retirer des possédées</button></div>`;
+
   function showSheet() { sheet.hidden = false; backdrop.hidden = false; const c = $("closeSheet"); if (c) c.focus(); }
   function closeSheet() {
     sheet.hidden = true; backdrop.hidden = true;
@@ -257,18 +397,16 @@
   function openFromHash() {
     const [t, k] = decodeURIComponent(location.hash.slice(1)).toUpperCase().split("@");      // #AIR.PA@4H : ouvre la fiche sur l'unité de la notification
     const k2 = (k || "").toLowerCase();
-    if (TFS.some(([x]) => x === k2) && k2 !== tf) { tf = k2; render(); }
-    if (t && data) openSheet(t);
+    if (TF_KEYS.includes(k2) && visibleTf().includes(k2) && k2 !== tf) { tf = k2; render(); }
+    if (t && data && data.stocks[t]) { const p = pos.find((x) => x.t === t); if (p) { view = "own"; render(); openPosSheet(posKey(p)); } else openSheet(t); }
   }
 
-  // ---- Positions : enregistrement local + synchronisation GitHub (variable privée HOLDINGS) ----
+  // ===================== Synchronisation GitHub (variable privée HOLDINGS) =====================
   let toastTimer;
   function toast(msg) {
     const el = $("toast"); el.textContent = msg; el.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 6000);
   }
-  function saveHeld() { store("held", [...held].sort().join(",")); }
-
   async function gh(method, path, body) {
     return fetch(`https://api.github.com/repos/${repo}/actions/variables${path}`, {
       method,
@@ -282,10 +420,10 @@
     if (r.status === 404) return null;
     if (r.status === 401 || r.status === 403) throw new Error("jeton refusé (permission « Variables » en lecture et écriture requise)");
     if (!r.ok) throw new Error("GitHub " + r.status);
-    return new Set(readList((await r.json()).value));
+    return parsePos((await r.json()).value);
   }
-  async function writeRemote(set) {
-    const value = set.size ? [...set].sort().join(",") : "-";          // GitHub refuse une valeur vide
+  async function writeRemote(list_) {
+    const value = list_.length ? list_.map(serialize).join(",") : "-";          // GitHub refuse une valeur vide
     let r = await gh("PATCH", "/" + GH_VAR, { name: GH_VAR, value });
     if (r.status === 404) r = await gh("POST", "", { name: GH_VAR, value });
     if (r.status === 401 || r.status === 403) throw new Error("jeton refusé (permission « Variables » en lecture et écriture requise)");
@@ -293,40 +431,40 @@
   }
   const canSync = () => !!(token && repo);
 
-  async function toggleHeld(t) {
-    const on = !held.has(t);
-    on ? held.add(t) : held.delete(t);
-    saveHeld(); render(); if (data && data.stocks[t]) openSheet(t);
-    if (!canSync()) { toast("Enregistrée sur ce téléphone. Sans jeton GitHub (réglages ⚙), pas de notifications spéciales."); return; }
+  async function changePositions(mutate, okMsg) {
+    mutate(pos); savePos(); render();
+    if (!canSync()) { toast("Enregistré sur ce téléphone. Sans jeton GitHub (réglages ⚙), pas de notifications spéciales."); return; }
     try {
-      const remote = (await readRemote()) || new Set();
-      on ? remote.add(t) : remote.delete(t);
+      const remote = (await readRemote()) || [];
+      mutate(remote);
       await writeRemote(remote);
-      held = remote; saveHeld(); render();
-      toast(on ? "⭐ Position enregistrée : notifications prioritaires dès le prochain passage (≤ 15 min)." : "Position retirée.");
+      pos = remote; savePos(); render();
+      toast(okMsg);
     } catch (e) {
-      toast("Synchronisation impossible : " + e.message + ". Position gardée sur ce téléphone seulement.");
+      toast("Synchronisation impossible : " + e.message + ". Gardé sur ce téléphone seulement.");
     }
   }
+  const upsert = (np) => (arr) => { const i = arr.findIndex((x) => posKey(x) === posKey(np)); if (i >= 0) arr[i] = np; else arr.push(np); };
+  const removeKey = (key) => (arr) => { const i = arr.findIndex((x) => posKey(x) === key); if (i >= 0) arr.splice(i, 1); };
 
   async function syncFromRemote() {
     if (!canSync()) return;
     try {
       const remote = await readRemote();
-      if (remote) { held = remote; saveHeld(); render(); }
+      if (remote) { pos = remote; savePos(); render(); }
     } catch (e) { /* hors-ligne ou jeton invalide : on garde la liste locale */ }
   }
 
-  // ---- Réglages ----
+  // ===================== Réglages =====================
   function openSettings() {
-    sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">Réglages</h2><button class="close" id="closeSheet" aria-label="Fermer">✕</button></div>
+    sheet.innerHTML = sheetHead("Réglages", "") + `
       <p class="note" style="margin-top:12px">Pour que vos positions déclenchent des notifications ⭐ prioritaires, l'application met à jour une variable <b>privée</b> de votre dépôt GitHub.
       Il faut pour cela un jeton à coller une fois (voir SETUP.md, étape 7). Il reste sur ce téléphone.</p>
       <label class="field" for="repoIn">Dépôt (pseudo/nom)</label><input class="text" id="repoIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="pseudo/fa-fo-scanner">
       <label class="field" for="tokIn">Jeton GitHub</label><input class="text" id="tokIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
       <button class="link" id="saveSet" style="width:100%;border:0;cursor:pointer;margin-top:12px">Enregistrer et synchroniser</button>
       <button class="posbtn" id="clearTok" style="margin-top:10px">Effacer le jeton de ce téléphone</button>
-      <p class="note" id="setStatus" role="status">${held.size} position${held.size > 1 ? "s" : ""} enregistrée${held.size > 1 ? "s" : ""} sur ce téléphone.${canSync() ? " Synchronisation GitHub active." : ""}</p>`;
+      <p class="note" id="setStatus" role="status">${pos.length} position${pos.length > 1 ? "s" : ""} enregistrée${pos.length > 1 ? "s" : ""} sur ce téléphone.${canSync() ? " Synchronisation GitHub active." : ""}</p>`;
     $("repoIn").value = repo; $("tokIn").value = token;
     showSheet();
   }
@@ -338,17 +476,18 @@
     if (!canSync()) { status.textContent = "Renseignez le dépôt et le jeton."; return; }
     status.textContent = "Vérification…";
     try {
-      const remote = (await readRemote()) || new Set();
-      const merged = new Set([...remote, ...held]);
-      if (merged.size !== remote.size || remote.size === 0) await writeRemote(merged);   // crée la variable si besoin
-      held = merged; saveHeld(); render();
-      status.textContent = `Connecté. ${held.size} position${held.size > 1 ? "s" : ""} synchronisée${held.size > 1 ? "s" : ""}.`;
+      const remote = (await readRemote()) || [];
+      const merged = remote.slice();
+      for (const p of pos) if (!merged.some((x) => posKey(x) === posKey(p))) merged.push(p);
+      if (merged.length !== remote.length || remote.length === 0) await writeRemote(merged);   // crée la variable si besoin
+      pos = merged; savePos(); render();
+      status.textContent = `Connecté. ${pos.length} position${pos.length > 1 ? "s" : ""} synchronisée${pos.length > 1 ? "s" : ""}.`;
     } catch (e) {
       status.textContent = "Échec : " + e.message;
     }
   }
 
-  // ---- Données ----
+  // ===================== Données =====================
   async function load(manual) {
     const btn = $("refresh");
     btn.classList.add("spin");
@@ -363,7 +502,11 @@
     } finally { setTimeout(() => btn.classList.remove("spin"), 400); }
   }
 
-  // ---- Événements ----
+  // ===================== Événements =====================
+  viewTabs.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-view]"); if (!b) return;
+    view = b.dataset.view; store("view", view); render();
+  });
   tfTabs.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-tf]"); if (!b) return;
     tf = b.dataset.tf; store("tf", tf); render();
@@ -374,19 +517,39 @@
   });
   list.addEventListener("click", (e) => {
     const add = e.target.closest("[data-add]");
-    if (add) { toggleHeld(add.dataset.add); return; }
+    if (add) { draft = null; openUnknown(add.dataset.add); return; }
+    const pc = e.target.closest(".card[data-pos]"); if (pc) { openPosSheet(pc.dataset.pos); return; }
     const c = e.target.closest(".card[data-t]"); if (c) openSheet(c.dataset.t);
   });
-  $("positions").addEventListener("click", (e) => {
-    if (e.target.closest("#posToggle")) {
-      const el = $("positions"); el.dataset.open = el.dataset.open === "0" ? "1" : "0"; renderPositions(); return;
+  sheet.addEventListener("click", async (e) => {
+    if (e.target.closest("#closeSheet")) { closeSheet(); return; }
+    const c = e.target.closest("[data-c]");
+    if (c && draft) { draft.c = c.dataset.c; renderEntry(); return; }
+    const k = e.target.closest("[data-etf]");
+    if (k && draft) { draft.tf = k.dataset.etf; renderEntry(); return; }
+    if (e.target.closest("#entryOk") && draft && draft.c && draft.tf) {
+      const raw = ($("entryPx").value || "").trim().replace(",", ".");
+      const px = raw !== "" && isFinite(+raw) && +raw > 0 ? +raw : null;
+      const np = { t: draft.t, c: draft.c, tf: draft.tf, e: px, ts: Date.now() };
+      draft = null; closeSheet(); view = "own"; store("view", view);
+      await changePositions(upsert(np), "⭐ Entrée enregistrée : notifications prioritaires dès le prochain passage (15 min au plus).");
+      return;
     }
-    const c = e.target.closest(".card[data-t]"); if (c) openSheet(c.dataset.t);
-  });
-  sheet.addEventListener("click", (e) => {
-    if (e.target.closest("#closeSheet")) closeSheet();
-    else if (e.target.closest("#posBtn")) toggleHeld(e.target.closest("#posBtn").dataset.t);
-    else if (e.target.closest("#saveSet")) saveSettings();
+    const sell = e.target.closest("[data-sell]");
+    if (sell) { closeSheet(); await changePositions(removeKey(sell.dataset.sell), "Position retirée."); return; }
+    const ed = e.target.closest("[data-edit]");
+    if (ed) {
+      const p = pos.find((x) => posKey(x) === ed.dataset.edit); if (!p) return;
+      const v = prompt("Prix d'entrée (vide = non renseigné) :", p.e == null ? "" : String(p.e).replace(".", ","));
+      if (v === null) return;
+      const raw = v.trim().replace(",", ".");
+      const np = { ...p, e: raw !== "" && isFinite(+raw) && +raw > 0 ? +raw : null };
+      await changePositions(upsert(np), "Prix d'entrée mis à jour.");
+      openPosSheet(posKey(np)); return;
+    }
+    const cp = e.target.closest("[data-copy]");
+    if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); toast("Symbole copié : " + cp.dataset.copy); } catch (err) { toast("Copie impossible : " + cp.dataset.copy); } return; }
+    if (e.target.closest("#saveSet")) saveSettings();
     else if (e.target.closest("#clearTok")) { token = ""; store("gh_token", null); $("tokIn").value = ""; $("setStatus").textContent = "Jeton effacé de ce téléphone."; }
   });
   backdrop.addEventListener("click", closeSheet);

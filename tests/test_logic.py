@@ -450,6 +450,15 @@ def test_modes():
     print("OK modes")
 
 
+def test_levels_and_sectors():
+    assert sc.parse_holdings("AIR.PA:S:4h:171.5,mc.pa:Fa:1d,-,RUI") == frozenset({"AIR.PA", "MC.PA", "RUI.PA"})
+    data = {"stocks": {"AIR.PA": {}, "MC.PA": {}, "ZZ.PA": {}}}
+    cache = sc.apply_sectors(data, {"MC.PA": "Conso cyclique"}, lambda t: {"AIR.PA": "Industrials"}[t])
+    assert data["stocks"]["AIR.PA"]["sector"] == "Industrie" and data["stocks"]["MC.PA"]["sector"] == "Conso cyclique"
+    assert data["stocks"]["ZZ.PA"]["sector"] == "Autres" and "ZZ.PA" not in cache                 # inconnu : réessayé au prochain passage
+    print("OK levels_and_sectors")
+
+
 def test_holdings_always_scanned():
     now = ts("2026-11-11 10:40")
     specs = {"AAA.PA": (1, 0.0, 5e6), "ILLIQ.PA": (2, 0.0, 10.0), "HORS.PA": (3, 0.0, 5e6)}
@@ -480,7 +489,11 @@ def test_end_to_end(tmp: Path):
             assert set(s["tf"]) <= set(sc.TF_ORDER) and "1d" in s["tf"]
             assert all("active" in r["s"] and r["s"]["dir"] in (None, "up", "down") for r in s["tf"].values())
             for tf, r in s["tf"].items():
-                assert r["state"] in ("fa", "fo", "none")
+                assert r["state"] in ("fa", "fo", "none") and r["buy"] >= 0
+                if "lv" in r:
+                    lv = r["lv"]
+                    assert set(lv["ma"]) == {"7", "20", "50", "100", "200"} and lv["tk"] > 0 and lv["low_prev"] > 0
+                    assert (lv["fa_body_low"] is not None) == (r["state"] == "fa")
                 if r["forming"]:
                     counts[tf]["forming"] += 1
                     assert r["p_fa"] is None or 0 <= r["p_fa"] <= 1
@@ -524,6 +537,7 @@ if __name__ == "__main__":
     test_pending()
     test_auto_universe()
     test_modes()
+    test_levels_and_sectors()
     test_holdings_always_scanned()
     test_end_to_end(out)
     print("\nTOUS LES TESTS PASSENT")

@@ -299,22 +299,32 @@ def simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, remaining, sigma, rng, 
 
 # ================================ Analyse d'une UT ================================
 
+def fmt_px(v):
+    return f"{v:.{4 if abs(v) < 1 else 3 if abs(v) < 10 else 2}f}"
+
+
+def px(v, ref=None):
+    """Arrondi d'un prix à un nombre de décimales adapté à son niveau (pas de cotation Euronext approché : < 1 € : 4 ; < 10 € : 3 ; sinon 2)."""
+    r = abs(ref if ref is not None else v)
+    return round(float(v), 4 if r < 1 else 3 if r < 10 else 2)
+
+
 def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur):
     """Niveaux utiles à l'application pour les stops et objectifs (SL / TP) d'une position, sur cette unité de temps.
     ma : MM7 (Heikin Ashi, comme la configuration) et MM20 / 50 / 100 / 200 des clôtures classiques ; tk / mm7_dn : Tenkan et pente
     de la MM7 (pour « Fo dans l'UT supérieure ») ; low_prev : plus bas (mèche ou corps) de la dernière bougie HA clôturée ;
     fa_body_low : bas du corps de la 1re bougie de la Fa en cours (sinon None)."""
     close = df["Close"].to_numpy(dtype=float)
-    ma = {"7": round(float(mm[-1]), 3)}
+    ma = {"7": px(mm[-1])}
     for n in MA_TP:
-        ma[str(n)] = round(float(close[-n:].mean()), 3) if len(close) >= n else None
+        ma[str(n)] = px(close[-n:].mean()) if len(close) >= n else None
     first = j if cur == 1 else None
     return {
         "ma": ma,
-        "tk": round(float(tk[-1]), 3),
+        "tk": px(tk[-1]),
         "mm7_dn": bool(len(mm) > 1 and mm[-1] < mm[-2]),
-        "low_prev": round(float(hal[nc - 1]), 3),
-        "fa_body_low": round(float(min(hao[first], hac[first])), 3) if first is not None else None,
+        "low_prev": px(hal[nc - 1]),
+        "fa_body_low": px(min(hao[first], hac[first])) if first is not None else None,
     }
 
 
@@ -392,8 +402,8 @@ def analyze_tf(df, tf, now_eff, rng):
         "p_fo": None,
         "p_s_up": None,
         "p_s_down": None,
-        "mm7": round(float(mm[nc - 1]), 3),
-        "tenkan": round(float(tk[nc - 1]), 3),
+        "mm7": px(mm[nc - 1]),
+        "tenkan": px(tk[nc - 1]),
         "events": events,
         "buy": int(c[-1] * df["Volume"].iloc[-1]) if c[-1] > o[-1] and np.isfinite(df["Volume"].iloc[-1]) else 0,
         "lv": levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur),
@@ -576,14 +586,14 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
         closes = daily[t]["Close"]
         price = float(closes.iloc[-1])
         prev = float(closes.iloc[-2]) if len(closes) > 1 else price
-        stocks[t] = {"name": universe[t], "price": round(price, 2), "chg": round((price / prev - 1) * 100, 2), "tf": tfs}
+        stocks[t] = {"name": universe[t], "price": px(price), "chg": round((price / prev - 1) * 100, 2), "tf": tfs}
         for pos in (positions or {}).get(t, []):             # alerte « stop loss bientôt touché » (positions S)
             sl, mode = position_sl(pos, stocks[t])
             r = tfs.get(pos.get("tf"))
             if sl is not None and mode == "S" and r and r["forming"] and r.get("sd_rem"):
                 p = p_touch(price, sl, r["sd_rem"])
                 if p >= PROB_MIN:
-                    events.append({"ticker": t, "tf": pos["tf"], "kind": "SL~", "bar": r["bar_forming"], "p": round(p, 2), "sl": round(sl, 2)})
+                    events.append({"ticker": t, "tf": pos["tf"], "kind": "SL~", "bar": r["bar_forming"], "p": round(p, 2), "sl": px(sl, price)})
 
     data = {
         "meta": {
@@ -700,8 +710,8 @@ def build_notification(e, stock, app_url, held=False):
     if pending and kind == "SL":
         pct = int(round(e["p"] * 100))
         title = f"⭐ 🛑 SL {lab} {pct}% · {short(e['ticker'])}"
-        message = (f"POSITION DÉTENUE\n{stock['name']} — {stock['price']:.2f} €\n"
-                   f"{pct} % de chances que le cours touche le stop loss ({e['sl']:.2f} €) avant la fin de la bougie {lab}.\n{summary_line(stock)}")
+        message = (f"POSITION DÉTENUE\n{stock['name']} — {fmt_px(stock['price'])} €\n"
+                   f"{pct} % de chances que le cours touche le stop loss ({fmt_px(e['sl'])} €) avant la fin de la bougie {lab}.\n{summary_line(stock)}")
         click = f"{app_url.rstrip('/')}/#{e['ticker']}@{e['tf']}" if app_url else None
         return title, message, click, 5
     if pending:
@@ -718,7 +728,7 @@ def build_notification(e, stock, app_url, held=False):
             what += "\nLa bougie remplit déjà la condition en ce moment."
         if e.get("level") == 2:
             what += f"\nProbabilité supérieure à {int(PROB_HIGH * 100)} %."
-        message = f"{stock['name']} — {stock['price']:.2f} €\n{what}\n{summary_line(stock)}"
+        message = f"{stock['name']} — {fmt_px(stock['price'])} €\n{what}\n{summary_line(stock)}"
         priority = 4 if e.get("level") == 2 else 3
         if held:
             title = f"⭐ {title}"
@@ -736,7 +746,7 @@ def build_notification(e, stock, app_url, held=False):
     else:
         part = ("Haut du corps" if kind == "Fa" else "Bas du corps") if BODY_MODE == "edge" else "Corps"
         what = f"{part} Heikin Ashi {lab} {'au-dessus' if kind == 'Fa' else 'sous'} de la MM7 et de la Tenkan"
-    message = f"{stock['name']} — {stock['price']:.2f} €\n{what}\n{summary_line(stock)}"
+    message = f"{stock['name']} — {fmt_px(stock['price'])} €\n{what}\n{summary_line(stock)}"
     priority = 3
     if held:
         title = f"⭐ {title}"

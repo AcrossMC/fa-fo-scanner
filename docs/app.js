@@ -36,7 +36,7 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const short = (t) => t.replace(/\.PA$/, "");
   const nf = (p, d = 2) => p.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const fmtPrice = (p) => nf(p) + " €";
+  const fmtPrice = (p) => nf(p, Math.abs(p) < 1 ? 4 : Math.abs(p) < 10 ? 3 : 2) + " €";   // décimales selon le niveau de prix (pas de cotation)
   const fmtChg = (c) => (c > 0 ? "+" : "") + nf(c) + " %";
   const fmtVs = (v, ref) => { const d = (v / ref - 1) * 100; return (d > 0 ? "+" : "") + nf(d, 1) + " %"; };
   const fmtEur = (n) => (n >= 1e6 ? nf(n / 1e6, 1) + " M€" : n >= 1e3 ? Math.round(n / 1e3) + " k€" : Math.round(n) + " €");

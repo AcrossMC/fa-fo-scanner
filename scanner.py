@@ -88,7 +88,13 @@ S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture
 MAX_PUSH_PER_RUN = 30     # au-delà : une seule notification récapitulative (ntfy.sh limite ~250 messages/jour)
 MA_TP = (20, 50, 100, 200)  # MM des objectifs (TP), calculées sur les clôtures classiques
 MIN_BARS = 25              # historique minimal pour calculer correctement les indicateurs
-SIGMA_SCALE = 1.0          # facteur appliqué à la volatilité de la simulation (réglé d'après backtest.py)
+# Facteur appliqué à la volatilité de la simulation, par unité de temps (réglé d'après les mesures de backtest.py :
+# la volatilité « racine du temps » surestime les mouvements restants en intrajournalier ; la semaine et le mois sont proches de 1).
+SIGMA_SCALE = {"1h": 0.65, "4h": 0.65, "1d": 0.65, "1w": 0.9, "1mo": 0.9}
+
+
+def sigma_scale(tf):
+    return SIGMA_SCALE[tf] if isinstance(SIGMA_SCALE, dict) else float(SIGMA_SCALE)
 SIM_PATHS = 400            # trajectoires Monte-Carlo par bougie en formation
 SIM_STEPS = 8
 # -------------------------------------------------------------------------
@@ -411,7 +417,7 @@ def analyze_tf(df, tf, now_eff, rng):
     }
     if forming:
         rets = np.diff(np.log(c[:nc]))[-100:]
-        sigma = float(np.std(rets)) * SIGMA_SCALE if len(rets) > 5 else float("nan")
+        sigma = float(np.std(rets)) * sigma_scale(tf) if len(rets) > 5 else float("nan")
         if np.isfinite(sigma) and sigma > 0:
             rem = remaining_fraction(idx[-1], tf, now_eff)
             p_fa, p_fo, p_su, p_sd = simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, rem, sigma, rng,

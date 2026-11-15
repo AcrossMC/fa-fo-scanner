@@ -198,10 +198,12 @@ def main():
     ap.add_argument("--tickers", type=int, default=80, help="nombre d'actions testées (les plus liquides) ; 0 = toutes")
     ap.add_argument("--out", default="backtest_report.md")
     ap.add_argument("--max-days", type=int, default=None, help="limiter le nombre de jours rejoués (test rapide)")
-    ap.add_argument("--sigma-scale", type=float, default=1.0, help="facteur appliqué à la volatilité de la simulation")
+    ap.add_argument("--sigma-scale", type=float, default=0.0, help="facteur unique de volatilité pour toutes les unités ; 0 = réglages du scanner")
     ap.add_argument("--auto", action="store_true", help="ajouter toutes les actions de Paris listées par Yahoo (plus d'échantillons)")
     args = ap.parse_args()
-    sc.SIGMA_SCALE = args.sigma_scale
+    if args.sigma_scale > 0:
+        sc.SIGMA_SCALE = args.sigma_scale
+    label = str(args.sigma_scale) if args.sigma_scale > 0 else "réglages du scanner " + str(sc.SIGMA_SCALE)
 
     universe = sc.load_universe()
     if args.auto:
@@ -211,7 +213,7 @@ def main():
     ranked = sorted(hourly, key=lambda t: sc.turnover(daily_from_hourly(hourly[t])), reverse=True)
     if args.tickers:
         ranked = ranked[:args.tickers]
-    print(f"{len(hourly)} actions avec données ; test sur {len(ranked)} actions, facteur de volatilité {args.sigma_scale}.", flush=True)
+    print(f"{len(hourly)} actions avec données ; test sur {len(ranked)} actions, facteur de volatilité : {label}.", flush=True)
     records, t0 = [], time.time()
     jobs = [(t, hourly[t], args.max_days, 2026 + i) for i, t in enumerate(ranked)]
     with mp.Pool(max(1, os.cpu_count() or 1)) as pool:
@@ -220,7 +222,7 @@ def main():
             if i % 10 == 0:
                 print(f"  {i}/{len(ranked)} actions, {len(records)} cas, {int(time.time() - t0)} s", flush=True)
     text = report(records, len(ranked))
-    text = text.replace("# Fiabilité des probabilités du scanner", f"# Fiabilité des probabilités du scanner (facteur de volatilité {args.sigma_scale})", 1)
+    text = text.replace("# Fiabilité des probabilités du scanner", f"# Fiabilité des probabilités du scanner (facteur de volatilité : {label})", 1)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(text)
     print(text)

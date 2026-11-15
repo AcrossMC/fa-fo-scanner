@@ -7,8 +7,8 @@ on:
         description: "Nombre d'actions testées (les plus liquides ; 0 = toutes)"
         default: "80"
       scales:
-        description: "Facteurs de volatilité à comparer, séparés par des virgules (1 = actuel)"
-        default: "0.6,0.75,0.9"
+        description: "Facteurs de volatilité à comparer, séparés par des virgules (0 = réglages actuels du scanner)"
+        default: "0"
       auto:
         description: "Ajouter toutes les actions de Paris listées par Yahoo (oui/non)"
         default: "non"

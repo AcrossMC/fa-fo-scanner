@@ -541,6 +541,23 @@ def test_end_to_end(tmp: Path):
     print("OK end_to_end")
 
 
+def test_backtest():
+    import backtest as bt
+    r = np.random.default_rng(5)
+    rows = []
+    for d in pd.bdate_range("2025-06-02", periods=120):
+        px = 50.0 if not rows else rows[-1][4]
+        for hr in range(9, 18):
+            o = px; px = px * float(np.exp(r.normal(0, 0.004)))
+            rows.append((d + pd.Timedelta(hours=hr), o, max(o, px) * 1.001, min(o, px) * 0.999, px, 1000))
+    h = pd.DataFrame(rows, columns=["t", "Open", "High", "Low", "Close", "Volume"]).set_index("t")
+    h.index = h.index.tz_localize(sc.PARIS)
+    rec = bt.backtest_ticker("X.PA", h, np.random.default_rng(1))
+    assert len(rec) > 200 and all(0 <= x["p"] <= 1 for x in rec) and {x["tf"] for x in rec} >= {"1d", "4h"}
+    assert "Fiabilité" in bt.report(rec, 1)
+    print("OK backtest")
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp")
     out.mkdir(parents=True, exist_ok=True)
@@ -561,5 +578,6 @@ if __name__ == "__main__":
     test_modes()
     test_levels_and_sectors()
     test_holdings_always_scanned()
+    test_backtest()
     test_end_to_end(out)
     print("\nTOUS LES TESTS PASSENT")

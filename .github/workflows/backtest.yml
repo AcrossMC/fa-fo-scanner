@@ -4,8 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       tickers:
-        description: "Nombre d'actions testées (les plus liquides)"
+        description: "Nombre d'actions testées (les plus liquides ; 0 = toutes)"
         default: "80"
+      scales:
+        description: "Facteurs de volatilité à comparer, séparés par des virgules (1 = actuel)"
+        default: "0.6,0.75,0.9"
+      auto:
+        description: "Ajouter toutes les actions de Paris listées par Yahoo (oui/non)"
+        default: "non"
 
 permissions:
   contents: read
@@ -13,7 +19,11 @@ permissions:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        scale: ${{ fromJSON(format('[{0}]', inputs.scales)) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,7 +32,10 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Rejouer le passé
-        run: python backtest.py --tickers "${{ inputs.tickers }}" --out backtest_report.md
+        run: |
+          AUTO=""
+          if [ "${{ inputs.auto }}" = "oui" ]; then AUTO="--auto"; fi
+          python backtest.py --tickers "${{ inputs.tickers }}" --sigma-scale "${{ matrix.scale }}" $AUTO --out backtest_report.md
       - name: Afficher le rapport sur la page de l'exécution
         if: always()
         run: |
@@ -30,5 +43,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rapport-fiabilite
+          name: rapport-fiabilite-${{ matrix.scale }}
           path: backtest_report.md

@@ -93,6 +93,28 @@ MIN_BARS = 25              # historique minimal pour calculer correctement les i
 SIGMA_SCALE = {"1h": 0.65, "4h": 0.65, "1d": 0.65, "1w": 0.9, "1mo": 0.9}
 
 
+# Table de correction des probabilités (brut de la simulation -> fréquence réellement observée), mesurée par backtest.py sur ~380 actions
+# liquides et ~2 ans d'historique horaire (1,75 M de cas). Interpolation linéaire entre les points ; monotone croissante.
+# Intrajournalier (1h, 4h, 1j) et hebdomadaire séparés ; S hebdomadaire et mensuel : trop peu de cas, non corrigés.
+CALIB = {
+    ("fa", "short"): ([0, .14, .24, .34, .44, .545, .645, .745, .85, 1.0], [0, .105, .16, .22, .335, .525, .645, .73, .825, .965]),
+    ("fo", "short"): ([0, .14, .24, .34, .44, .55, .65, .75, .85, 1.0], [0, .135, .195, .27, .385, .58, .705, .80, .86, .99]),
+    ("s", "short"): ([0, .14, .24, .34, .44, .54, .64, .74, .84, .95, 1.0], [0, .12, .235, .335, .44, .55, .61, .67, .75, .80, .82]),
+    ("fa", "long"): ([0, .14, .24, .34, .44, .55, .65, .75, .85, 1.0], [0, .13, .19, .30, .42, .53, .70, .81, .82, .97]),
+    ("fo", "long"): ([0, .14, .24, .34, .45, .55, .65, .75, .85, 1.0], [0, .10, .17, .27, .39, .56, .68, .79, .86, .99]),
+}
+
+
+def calibrate(kind, tf, p):
+    """Probabilité corrigée d'après la fréquence observée (voir CALIB). kind : « fa », « fo » ou « s »."""
+    if p is None:
+        return None
+    pts = CALIB.get((kind, "long" if tf in ("1w", "1mo") else "short"))
+    if pts is None or (tf == "1mo"):
+        return p
+    return float(np.interp(p, pts[0], pts[1]))
+
+
 def sigma_scale(tf):
     return SIGMA_SCALE[tf] if isinstance(SIGMA_SCALE, dict) else float(SIGMA_SCALE)
 SIM_PATHS = 400            # trajectoires Monte-Carlo par bougie en formation
@@ -424,6 +446,8 @@ def analyze_tf(df, tf, now_eff, rng):
                                               run(nc, bear) if clean_count(nc, run(nc, bear), bear_clean) >= S_WICK_MIN else 0,
                                               run(nc, bull) if clean_count(nc, run(nc, bull), bull_clean) >= S_WICK_MIN else 0)
             res["sd_rem"] = round(sigma * float(np.sqrt(max(rem, 1e-9))), 5)      # écart-type du rendement jusqu'à la fin de la bougie
+            p_fa, p_fo = calibrate("fa", tf, p_fa), calibrate("fo", tf, p_fo)
+            p_su, p_sd = calibrate("s", tf, p_su), calibrate("s", tf, p_sd)
             res["p_fa"], res["p_fo"] = round(p_fa, 2), round(p_fo, 2)
             res["p_s_up"], res["p_s_down"] = round(p_su, 2), round(p_sd, 2)
     return res

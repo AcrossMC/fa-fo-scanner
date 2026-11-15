@@ -181,7 +181,7 @@ def test_forming_and_closed():
     assert r_dn["state"] == "fo" and r_dn["p_fo"] > 0.8 and r_dn["p_fa"] < 0.05, r_dn
     # fin de bougie : plus rien à simuler => résultat quasi déterministe
     r_end = sc.analyze_tf(up, "1d", ts("2026-11-11 17:34"), rng)
-    assert r_end["p_fa"] in (0.0, 1.0)
+    assert r_end["p_fa"] in (0.0, 0.96, 0.97)   # 1.0 brut -> 0.965 après correction
     for r in (r_up, r_dn, r_end, res_mid):
         assert all(0.0 <= r[k] <= 1.0 for k in ("p_s_up", "p_s_down"))
     assert r_up["p_s_up"] == 0.0                                  # pas de bougies baissières avant : S haussière impossible
@@ -558,6 +558,16 @@ def test_backtest():
     print("OK backtest")
 
 
+def test_calibration():
+    for (kind, grp), (xs, ys) in sc.CALIB.items():
+        assert len(xs) == len(ys) and xs == sorted(xs) and ys == sorted(ys) and xs[0] == 0 and ys[0] == 0, (kind, grp)
+    assert sc.calibrate("fa", "1d", 0.34) == 0.22 and sc.calibrate("fa", "4h", 0.0) == 0.0
+    assert 0.66 < sc.calibrate("s", "1d", 0.74) < 0.68 + 1e-9
+    assert sc.calibrate("s", "1w", 0.74) == 0.74 and sc.calibrate("fa", "1mo", 0.5) == 0.5 and sc.calibrate("fo", "1w", None) is None
+    assert 0 < sc.calibrate("fo", "1w", 0.5) < 0.5
+    print("OK calibration")
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp")
     out.mkdir(parents=True, exist_ok=True)
@@ -578,6 +588,7 @@ if __name__ == "__main__":
     test_modes()
     test_levels_and_sectors()
     test_holdings_always_scanned()
+    test_calibration()
     test_backtest()
     test_end_to_end(out)
     print("\nTOUS LES TESTS PASSENT")

@@ -61,7 +61,7 @@ def outcomes(df, tf):
     return cls == 1, cls == -1, bool(s["active"] and s["dir"] == "up"), bool(s["active"] and s["dir"] == "down")
 
 
-def backtest_ticker(t, hourly, rng, max_days=None):
+def backtest_ticker(t, hourly, rng, max_days=None, tier=""):
     """Retourne une liste d'échantillons {ticker, tf, snap, kind, p, hit, alertable}."""
     hourly = hourly.dropna(subset=["Open", "High", "Low", "Close"])
     hourly = hourly[hourly.index.tz_localize(None).weekday < 5]
@@ -87,7 +87,7 @@ def backtest_ticker(t, hourly, rng, max_days=None):
             if p is None or (key.startswith("p_s") and p <= 0):
                 continue
             out.append({"ticker": t, "tf": tf, "snap": label, "kind": kname, "p": float(p), "hit": bool(hit),
-                        "alertable": (res["state"] != "fa") if kname == "Fa" else True})
+                        "alertable": (res["state"] != "fa") if kname == "Fa" else True, "tier": tier})
 
     for day in days:
         dn = day.tz_localize(None)
@@ -167,6 +167,18 @@ def report(records, n_tickers):
             elif len(s):
                 L.append(f"| {tf} | {kind} | {len(s)} | | | trop peu de cas |")
     L.append("")
+    if "tier" in df and df.tier.nunique() > 1:
+        L += ["## Selon la liquidité de l'action (volume moyen en € par jour)", "",
+              "Cas annoncés entre 30 et 60 % (là où l'écart est le plus grand) et alertes à 60 % et plus.", "",
+              "| Unité | Configuration | Liquidité | Cas 30-60 % | Annoncé | Réalisé | Cas ≥ 60 % | Annoncé | Réalisé |", "|---|---|---|---:|---:|---:|---:|---:|---:|"]
+        for tf in ("4h", "1d"):
+            for kind, _ in KINDS[:3:2]:
+                for tier in ("100 k€ - 1 M€", "1 - 10 M€", "plus de 10 M€"):
+                    b = df[(df.tf == tf) & (df.kind == kind) & (df.tier == tier) & df.alertable]
+                    m, h = b[(b.p >= .3) & (b.p < .6)], b[b.p >= .6]
+                    if len(m) >= 20 and len(h) >= 20:
+                        L.append(f"| {tf} | {kind} | {tier} | {len(m)} | {m.p.mean() * 100:.0f} % | {m.hit.mean() * 100:.0f} % | {len(h)} | {h.p.mean() * 100:.0f} % | {h.hit.mean() * 100:.0f} % |")
+        L.append("")
     for tf in ("4h", "1d", "1w"):
         for kind, _ in KINDS:
             s = df[(df.tf == tf) & (df.kind == kind)]
@@ -184,10 +196,14 @@ def report(records, n_tickers):
     return "\n".join(L)
 
 
+def tier_of(v):
+    return "100 k€ - 1 M€" if v < 1e6 else "1 - 10 M€" if v < 1e7 else "plus de 10 M€"
+
+
 def _work(args):
-    t, df, max_days, seed = args
+    t, df, max_days, seed, tier = args
     try:
-        return t, backtest_ticker(t, df, np.random.default_rng(seed), max_days)
+        return t, backtest_ticker(t, df, np.random.default_rng(seed), max_days, tier)
     except Exception as e:
         print(f"  {t} : erreur {e}", file=sys.stderr)
         return t, []
@@ -199,6 +215,7 @@ def main():
     ap.add_argument("--out", default="backtest_report.md")
     ap.add_argument("--max-days", type=int, default=None, help="limiter le nombre de jours rejoués (test rapide)")
     ap.add_argument("--sigma-scale", type=float, default=0.0, help="facteur unique de volatilité pour toutes les unités ; 0 = réglages du scanner")
+    ap.add_argument("--min-turnover", type=float, default=sc.MIN_TURNOVER_EUR, help="liquidité minimale (€/jour), comme le scanner")
     ap.add_argument("--auto", action="store_true", help="ajouter toutes les actions de Paris listées par Yahoo (plus d'échantillons)")
     args = ap.parse_args()
     if args.sigma_scale > 0:
@@ -210,12 +227,14 @@ def main():
         universe.update({t: n for t, n in sc.fetch_paris_listing().items() if t not in universe})
     print(f"Téléchargement de l'historique horaire ({len(universe)} actions)…", flush=True)
     hourly = sc.download(list(universe), "2y", "1h")
-    ranked = sorted(hourly, key=lambda t: sc.turnover(daily_from_hourly(hourly[t])), reverse=True)
+    turn = {t: sc.turnover(daily_from_hourly(hourly[t])) for t in hourly}
+    ranked = sorted((t for t in hourly if turn[t] >= args.min_turnover), key=lambda t: turn[t], reverse=True)
+    print(f"{len(ranked)} actions au-dessus de {args.min_turnover:,.0f} €/jour (comme le scanner).".replace(",", " "), flush=True)
     if args.tickers:
         ranked = ranked[:args.tickers]
     print(f"{len(hourly)} actions avec données ; test sur {len(ranked)} actions, facteur de volatilité : {label}.", flush=True)
     records, t0 = [], time.time()
-    jobs = [(t, hourly[t], args.max_days, 2026 + i) for i, t in enumerate(ranked)]
+    jobs = [(t, hourly[t], args.max_days, 2026 + i, tier_of(turn[t])) for i, t in enumerate(ranked)]
     with mp.Pool(max(1, os.cpu_count() or 1)) as pool:
         for i, (t, rec) in enumerate(pool.imap_unordered(_work, jobs), 1):
             records += rec

@@ -550,6 +550,20 @@ def test_end_to_end(tmp: Path):
     print("OK end_to_end")
 
 
+def test_icb():
+    import icb
+    page = "<div><span>ICB Industry</span><span>Industrials</span></div><p>ICB Supersector</p><p>Industrial Goods and Services</p><p>ICB Sector</p><p>Aerospace and Defense</p><p>ICB Subsector</p><p>Aerospace</p>"
+    got = icb.parse_icb(page)
+    assert got == {"ind": "Industrials", "sup": "Industrial Goods and Services", "sec": "Aerospace and Defense", "sub": "Aerospace"}, got
+    assert icb.parse_icb("<html>rien</html>") == {}
+    assert sc.icb_group({"sub": "Automobiles", "sec": "Automobiles and Parts"}) == "Automobile & Équipementiers"
+    assert sc.icb_group({}) == "Autres"
+    data = {"stocks": {"X.PA": {}, "Y.PA": {}}}
+    called = []
+    sc.apply_sectors(data, {}, lambda t: called.append(t) or ("Technology", "Software - Application"), themes={}, icb={"X.PA": {"sub": "Aerospace"}})
+    assert data["stocks"]["X.PA"]["sector"] == "Aéronautique & Défense" and called == ["Y.PA"], (data, called)
+
+
 def test_backtest():
     import backtest as bt
     r = np.random.default_rng(5)
@@ -635,6 +649,7 @@ if __name__ == "__main__":
     test_auto_universe()
     test_modes()
     test_levels_and_sectors()
+    test_icb()
     test_holdings_always_scanned()
     test_calibration()
     test_tracker()

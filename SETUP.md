@@ -119,3 +119,10 @@ pip install -r requirements.txt
 python tests/test_logic.py        # tests hors ligne
 python scanner.py --no-push       # vrai scan, écrit docs/data.json, aucune notification
 ```
+
+
+## Secteurs ICB (Euronext)
+Le workflow **Secteurs ICB** (onglet Actions) lit la classification officielle d'Euronext pour chaque action et l'enregistre dans `icb.json`.
+1. Lancez-le une première fois avec `mode` = `probe` : il affiche ce qui est lu pour 5 actions (à me coller si le résultat semble vide).
+2. Si la lecture est correcte, relancez-le avec `mode` = `update` (puis il se met à jour tout seul chaque dimanche).
+Priorité des secteurs : `themes.csv`, puis ICB Euronext, puis Yahoo.

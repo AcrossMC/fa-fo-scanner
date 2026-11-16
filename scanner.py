@@ -987,11 +987,29 @@ def sector_group(industry, sector):
     return SECTOR_FALLBACK.get(sector or "", "Autres")
 
 
-def apply_sectors(data, cache, lookup, limit=60, themes=None):
+def load_icb():
+    """Classification ICB d'Euronext (icb.json, voir icb.py) : {ticker: {"ind","sup","sec","sub"}}."""
+    try:
+        return json.loads((HERE / "icb.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def icb_group(c):
+    """Secteur principal d'après l'ICB (sous-secteur puis secteur puis supersecteur), « Autres » si aucune règle ne correspond."""
+    for lvl in ("sub", "sec", "sup"):
+        g = sector_group((c or {}).get(lvl), "")
+        if g != "Autres":
+            return g
+    return "Autres"
+
+
+def apply_sectors(data, cache, lookup, limit=60, themes=None, icb=None):
     """Ajoute secteur principal et thèmes à chaque action. themes.csv a priorité ; sinon industrie Yahoo (cache sectors.json, jusqu'à
     `limit` nouvelles recherches par passage via `lookup(ticker)` -> (secteur, industrie))."""
     themes = load_themes() if themes is None else themes
-    todo = [t for t in data["stocks"] if t not in themes and not isinstance(cache.get(t), dict)]
+    icb = load_icb() if icb is None else icb
+    todo = [t for t in data["stocks"] if t not in themes and icb_group(icb.get(t)) == "Autres" and not isinstance(cache.get(t), dict)]
     fails = 0
     for t in todo[:limit]:
         try:
@@ -1009,7 +1027,10 @@ def apply_sectors(data, cache, lookup, limit=60, themes=None):
             stock["sector"], stock["themes"] = themes[t][0], list(themes[t][1])
             continue
         c = cache.get(t)
-        if isinstance(c, dict):
+        g = icb_group(icb.get(t))
+        if g != "Autres":
+            stock["sector"], stock["themes"] = g, []
+        elif isinstance(c, dict):
             stock["sector"], stock["themes"] = sector_group(c.get("i"), c.get("s")), []
         elif isinstance(c, str):                             # ancien format du cache : secteur français seul
             stock["sector"], stock["themes"] = sector_group("", SECTOR_EN.get(c, c)), []

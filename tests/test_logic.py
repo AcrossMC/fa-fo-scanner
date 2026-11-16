@@ -568,6 +568,45 @@ def test_calibration():
     print("OK calibration")
 
 
+def test_tracker():
+    import tempfile
+    import tracker
+    d = Path(tempfile.mkdtemp())
+    bar = "2026-11-12T00:00:00+01:00"
+    bar2 = "2026-11-13T00:00:00+01:00"
+    ev = lambda t, kind, p, b=bar, tf="1d": {"ticker": t, "tf": tf, "kind": kind, "bar": b, "p": p}
+    events = [ev("A.PA", "Fa~", 0.45), ev("B.PA", "Fa~", 0.72), ev("C.PA", "Fo~", 0.55), ev("D.PA", "S+~", 0.5),
+              ev("E.PA", "Fa~", 0.30), ev("F.PA", "SL~", 0.95), ev("G.PA", "Fa~", 0.7, "2026-11-12T09:00:00+01:00", "1h"),
+              ev("H.PA", "Fa~", 0.8, bar2)]
+    mk = lambda c, s=None: {"recent": {bar: {"c": c, "s": s, "lo": 1.0}}}
+    data = {"stocks": {"A.PA": {"tf": {"1d": mk(0)}}, "B.PA": {"tf": {"1d": mk(1)}}, "C.PA": {"tf": {"1d": mk(1)}},
+                       "D.PA": {"tf": {"1d": mk(0, "up")}}, "H.PA": {"tf": {"1d": {"recent": {}}}}}}
+    now1 = pd.Timestamp("2026-11-12T11:00:00+01:00")
+    st = tracker.run(events, data, [events[1]], now1, d / "log.json", d / "stats.json")
+    assert st["logged"] == 5 and st["resolved"] == 0, st          # E (< seuil), F (SL), G (1h) ignorés ; barres pas encore closes
+    # suivi : une configuration revue plus tard garde son premier pourcentage, garde le plus haut
+    tracker.run([ev("A.PA", "Fa~", 0.9)], data, [], now1, d / "log.json", d / "stats.json")
+    log = tracker.load_log(d / "log.json")
+    a = log["A.PA|1d|Fa|" + bar]
+    assert a["p0"] == 0.45 and a["pm"] == 0.9 and a["pa"] == 0.9 and "n" not in a
+    assert log["B.PA|1d|Fa|" + bar]["n"] == 1
+    now2 = pd.Timestamp("2026-11-12T18:00:00+01:00")
+    st = tracker.run([], data, [], now2, d / "log.json", d / "stats.json")
+    log = tracker.load_log(d / "log.json")
+    assert [log[k]["r"] for k in sorted(log) if k.startswith(("A", "B", "C", "D"))] == [0, 1, 0, 1], log
+    assert "r" not in log["H.PA|1d|Fa|" + bar2]
+    now3 = pd.Timestamp("2026-11-20T09:00:00+01:00")
+    tracker.run([], data, [], now3, d / "log.json", d / "stats.json")
+    assert tracker.load_log(d / "log.json")["H.PA|1d|Fa|" + bar2]["r"] == -1       # jamais vue clôturée : perdue
+    fa = [r for r in st["rows"] if r["kind"] == "Fa" and r["tf"] == "1d"][0]
+    assert fa["resolved"] == 2 and fa["all"]["n"] == 2 and fa["verdict"] == "trop tôt" and fa["sent"]["n"] == 1
+    # stats : seuil suggéré quand assez de cas fiables
+    big = {f"X{i}.PA|4h|Fa|b{i}": {"p0": 0.62 + (i % 3) * 0.1, "pm": 0.8, "d": "2026-11-10", "r": 1 if i % 4 else 0} for i in range(80)}
+    row = [r for r in tracker.compute_stats(big, now3)["rows"] if r["tf"] == "4h"][0]
+    assert row["suggest"] == 0.4 and row["verdict"] in ("calibré", "trop optimiste", "plus prudent que la réalité"), row
+    print("OK tracker")
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp")
     out.mkdir(parents=True, exist_ok=True)
@@ -589,6 +628,7 @@ if __name__ == "__main__":
     test_levels_and_sectors()
     test_holdings_always_scanned()
     test_calibration()
+    test_tracker()
     test_backtest()
     test_end_to_end(out)
     print("\nTOUS LES TESTS PASSENT")

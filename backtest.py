@@ -76,12 +76,23 @@ def backtest_ticker(t, hourly, rng, max_days=None, tier=""):
         days = days[-max_days:]
     out = []
 
-    def sample(tf, snap_frame, final_frame, now, label, kind_hits):
+    def sample(tf, snap_frame, final_frame, now, label, kind_hits, fut_low=None):
         if snap_frame is None or len(snap_frame) < sc.MIN_BARS or final_frame is None:
             return
         res = sc.analyze_tf(snap_frame, tf, now, rng)
         if res is None or not res["forming"] or res.get("p_fa") is None:
             return
+        sd = res.get("sd_rem")
+        if sd and fut_low is not None and np.isfinite(fut_low):              # stop loss : le cours touche-t-il le niveau avant la fin de la bougie ?
+            price = float(snap_frame["Close"].iloc[-1])
+            for z in (0.05, 0.12, 0.25, 0.4, 0.8, 1.2, 1.6, 2.0):                               # niveaux théoriques à z écarts-types sous le cours
+                lvl = price * float(np.exp(-z * sd))
+                out.append({"ticker": t, "tf": tf, "snap": label, "kind": "SL (formule)", "p": sc.p_touch(price, lvl, sd),
+                            "hit": bool(fut_low <= lvl), "alertable": True, "tier": tier})
+            real, mode = sc.position_sl({"c": "S", "tf": tf, "ts": None}, {"tf": {tf: res}})
+            if real is not None and real < price:                              # niveau réel d'un stop de S (plus bas de la bougie précédente)
+                out.append({"ticker": t, "tf": tf, "snap": label, "kind": "SL (niveau réel)", "p": sc.p_touch(price, real, sd),
+                            "hit": bool(fut_low <= real), "alertable": True, "tier": tier})
         for (kname, key), hit in zip(KINDS, kind_hits):
             p = res[key]
             if p is None or (key.startswith("p_s") and p <= 0):
@@ -103,7 +114,8 @@ def backtest_ticker(t, hourly, rng, max_days=None, tier=""):
             ends_ok = in_day & (naive_h + pd.Timedelta(hours=1) <= dn + pd.Timedelta(hours=hr))
             part = merge_rows(hourly[ends_ok], day)
             if part is not None and oc_d is not None:
-                sample("1d", pd.concat([prev_d, part]), fin_d, now, f"{hr}h", oc_d)
+                lows = hourly["Low"][in_day & (naive_h >= dn + pd.Timedelta(hours=hr))]
+                sample("1d", pd.concat([prev_d, part]), fin_d, now, f"{hr}h", oc_d, float(lows.min()) if len(lows) else None)
             # --- 4 heures : bougie du matin (9h-13h) vue à 11h ; bougie de l'après-midi (13h-17h35) vue à 14h et 15h ---
             start = 9 if hr < 13 else 13
             k4 = dn + pd.Timedelta(hours=start)
@@ -115,7 +127,9 @@ def backtest_ticker(t, hourly, rng, max_days=None, tier=""):
             if part4 is not None and len(fin_4) >= sc.MIN_BARS and idx4[idx4 <= k4].max() == k4:
                 oc4 = outcomes(fin_4, "4h")
                 if oc4 is not None:
-                    sample("4h", pd.concat([prev_4, part4]), fin_4, now, f"{hr}h", oc4)
+                    end4 = dn + pd.Timedelta(hours=13 if start == 9 else 24)
+                    lows4 = hourly["Low"][in_day & (naive_h >= dn + pd.Timedelta(hours=hr)) & (naive_h < end4)]
+                    sample("4h", pd.concat([prev_4, part4]), fin_4, now, f"{hr}h", oc4, float(lows4.min()) if len(lows4) else None)
         # --- 1 semaine : mardi et jeudi à 14h ---
         if dn.weekday() in WEEK_SNAP:
             monday = (dn - pd.Timedelta(days=dn.weekday())).tz_localize(sc.PARIS)
@@ -129,7 +143,9 @@ def backtest_ticker(t, hourly, rng, max_days=None, tier=""):
                 if wpart is not None and len(fin_w) >= sc.MIN_BARS and fin_w.index[-1] == monday:
                     ocw = outcomes(fin_w, "1w")
                     if ocw is not None:
-                        sample("1w", pd.concat([prev_w, wpart]), fin_w, day.replace(hour=14, minute=0), "14h", ocw)
+                        wk_end = monday.tz_localize(None) + pd.Timedelta(days=5)
+                        loww = hourly["Low"][(naive_h >= dn + pd.Timedelta(hours=14)) & (naive_h < wk_end)]
+                        sample("1w", pd.concat([prev_w, wpart]), fin_w, day.replace(hour=14, minute=0), "14h", ocw, float(loww.min()) if len(loww) else None)
     return out
 
 
@@ -179,6 +195,20 @@ def report(records, n_tickers):
                     if len(m) >= 20 and len(h) >= 20:
                         L.append(f"| {tf} | {kind} | {tier} | {len(m)} | {m.p.mean() * 100:.0f} % | {m.hit.mean() * 100:.0f} % | {len(h)} | {h.p.mean() * 100:.0f} % | {h.hit.mean() * 100:.0f} % |")
         L.append("")
+    for tf in ("4h", "1d", "1w"):
+        for kind in ("SL (formule)", "SL (niveau réel)"):
+            s = df[(df.tf == tf) & (df.kind == kind)]
+            if len(s) < 50:
+                continue
+            brier = float(((s.p - s.hit.astype(float)) ** 2).mean())
+            L += [f"## Stop loss : {kind} en {tf}", "",
+                  f"{len(s)} cas · fréquence réelle globale {s.hit.mean() * 100:.0f} % · score de Brier {brier:.3f}. "
+                  "« Réalisé » = le cours a touché le niveau entre l'instant du test et la clôture de la bougie.", ""]
+            L += summarize(s, kind)
+            hi = s[s.p >= 0.9]
+            if len(hi) >= 20:
+                L += ["", f"**Alertes SL à 90 % et plus : {len(hi)} cas, annoncé {hi.p.mean() * 100:.0f} %, réalisé {hi.hit.mean() * 100:.0f} %.**"]
+            L.append("")
     for tf in ("4h", "1d", "1w"):
         for kind, _ in KINDS:
             s = df[(df.tf == tf) & (df.kind == kind)]

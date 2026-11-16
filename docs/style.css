@@ -260,3 +260,8 @@ button { font: inherit; color: inherit; }
 .qmark { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: 13px; font-weight: 800; line-height: 1; cursor: pointer; padding: 0; }
 .bubble { display: none; position: absolute; left: 0; top: 28px; z-index: 5; width: min(280px, 72vw); padding: 10px 12px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 400; line-height: 1.35; text-transform: none; letter-spacing: 0; box-shadow: 0 6px 20px rgba(0,0,0,.35); }
 .helpwrap:hover .bubble, .helpwrap.open .bubble { display: block; }
+
+.statwrap { overflow-x: auto; }
+.stat { width: 100%; border-collapse: collapse; font-size: 13px; }
+.stat th, .stat td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.stat th:first-child, .stat td:first-child, .stat th:last-child, .stat td:last-child { text-align: left; }

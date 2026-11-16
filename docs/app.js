@@ -488,6 +488,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       <label class="field" for="tokIn">Jeton GitHub</label><input class="text" id="tokIn" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…">
       <button class="link" id="saveSet" style="width:100%;border:0;cursor:pointer;margin-top:12px">Enregistrer et synchroniser</button>
       <button class="posbtn" id="clearTok" style="margin-top:10px">Effacer le jeton de ce téléphone</button>
+      <button class="posbtn" id="statsBtn" style="margin-top:10px">Bilan des alertes (fiabilité réelle)</button>
       <p class="note" id="setStatus" role="status">${pos.length} position${pos.length > 1 ? "s" : ""} enregistrée${pos.length > 1 ? "s" : ""} sur ce téléphone.${canSync() ? " Synchronisation GitHub active." : ""}</p>`;
     $("repoIn").value = repo; $("tokIn").value = token;
     showSheet();
@@ -509,6 +510,28 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     } catch (e) {
       status.textContent = "Échec : " + e.message;
     }
+  }
+
+  // ===================== Bilan des alertes : pourcentage annoncé / résultat réel (stats.json, mis à jour par le scanner) =====================
+  async function openStats() {
+    sheet.innerHTML = sheetHead("Bilan des alertes", "Annoncé et réalisé, mis à jour automatiquement") + `<p class="note" id="statsBody">Chargement…</p>`;
+    let st = null;
+    try { const r = await fetch("stats.json?t=" + Date.now(), { cache: "no-store" }); if (r.ok) st = await r.json(); } catch (e) { /* rien */ }
+    const body = $("statsBody"); if (!body) return;
+    if (!st || !st.rows || !st.rows.length) { body.textContent = "Pas encore de données : le suivi démarre au prochain passage du scanner et se remplit chaque jour de bourse."; return; }
+    const TFN = { "4h": "4h", "1d": "1j", "1w": "1sem", "1mo": "1mois" };
+    const rows = st.rows.map((r) => {
+      const a = r.all;
+      const ok = r.resolved >= (st.min_cases || 20);
+      return `<tr><td>${esc(r.label)} ${TFN[r.tf] || r.tf}<div class="muted small">${esc(r.verdict)}</div></td><td>${r.resolved}</td>`
+        + `<td>${ok ? pct(a.p) : "–"}</td><td>${ok ? pct(a.h) : "–"}</td>`
+        + `<td>${r.suggest != null ? "≥ " + Math.round(r.suggest * 100) + " %" : "–"}</td></tr>`;
+    }).join("");
+    body.outerHTML = `<p class="note">${st.resolved} configurations résolues sur ${st.logged} suivies, depuis ${st.days} jour${st.days > 1 ? "s" : ""}.
+      « Annoncé » = pourcentage moyen au premier passage au-dessus du seuil de suivi (40-50 %) ; « Réalisé » = part réellement produite à la clôture de la bougie.
+      « Seuil » = seuil conseillé, le plus bas seuil dont la fiabilité réelle atteint ${Math.round((st.target || 0.6) * 100)} %. En dessous de ${st.min_cases || 20} cas, pas de conclusion.</p>
+      <div class="statwrap"><table class="stat"><thead><tr><th>Configuration</th><th>Cas</th><th>Annoncé</th><th>Réalisé</th><th>Seuil</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="note">Les stops loss ne sont pas suivis ici (ils concernent vos positions seulement).</p>`;
   }
 
   // ===================== Données =====================
@@ -575,6 +598,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     }
     const cp = e.target.closest("[data-copy]");
     if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); toast("Symbole copié : " + cp.dataset.copy); } catch (err) { toast("Copie impossible : " + cp.dataset.copy); } return; }
+    if (e.target.closest("#statsBtn")) { openStats(); return; }
     if (e.target.closest("#saveSet")) saveSettings();
     else if (e.target.closest("#clearTok")) { token = ""; store("gh_token", null); $("tokIn").value = ""; $("setStatus").textContent = "Jeton effacé de ce téléphone."; }
   });

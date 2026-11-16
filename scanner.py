@@ -70,6 +70,7 @@ NOTIFY_HELD = {"Fa": _ALL, "Fo": _ALL, "S+": _ALL, "S-": _ALL}
 
 
 PROB_NOTIFY = {"4h": 0.60, "1d": 0.60, "1w": 0.60, "1mo": 0.60}   # actions NON détenues : une seule notification par bougie, à 60 % sur toutes les unités
+OBS_MIN = {"Fa": 0.40, "S+": 0.40, "Fo": 0.50, "S-": 0.50}   # suivi des « presque alertes » (sans notification) pour ajuster les seuils
 PROB_EXIT = 0.60           # positions : alerte Fo (même UT) ou S baissière (UT inférieure) au-dessus de cette probabilité
 PROB_SL = 0.90             # positions S : alerte « stop loss bientôt touché » au-dessus de cette probabilité
 POS_ALERT_CONFIGS = ("S", "Fa")   # les entrées « Autre » (O) n'ont ni SL, ni TP, ni alerte
@@ -417,6 +418,10 @@ def analyze_tf(df, tf, now_eff, rng):
         if d:
             events.append(("S+" if d == "up" else "S-", idx[k].isoformat()))
     s_dir, s_n = s_at(nc - 1)
+    cls = classify(hao, hac, mm, tk)
+    recent = {}                                       # résultat réel des dernières bougies clôturées (sert au suivi des alertes, retiré de data.json)
+    for k in range(max(0, nc - 4), nc):
+        recent[idx[k].isoformat()] = {"c": int(cls[k]), "s": s_at(k)[0], "lo": float(l[k])}
 
     res = {
         "s": {"active": s_dir is not None, "dir": s_dir, "n": s_n, "bar": idx[nc - 1].isoformat()},
@@ -425,8 +430,9 @@ def analyze_tf(df, tf, now_eff, rng):
         "bars": int(nc - j),
         "forming": bool(forming),
         "bar_forming": idx[-1].isoformat() if forming else None,
-        "over": {"fa": bool(forming and classify(hao, hac, mm, tk)[-1] == 1),     # la bougie en formation remplit déjà Fa / Fo
-                 "fo": bool(forming and classify(hao, hac, mm, tk)[-1] == -1)},
+        "over": {"fa": bool(forming and cls[-1] == 1),     # la bougie en formation remplit déjà Fa / Fo
+                 "fo": bool(forming and cls[-1] == -1)},
+        "recent": recent,
         "p_fa": None,
         "p_fo": None,
         "p_s_up": None,
@@ -611,6 +617,8 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
                     if p is not None and ok and p >= threshold(tf, held):
                         events.append({"ticker": t, "tf": tf, "kind": kind + "~", "bar": res["bar_forming"], "p": p,
                                        "over": res["over"]["fa"] if kind == "Fa" else res["over"]["fo"] if kind == "Fo" else False})
+                    elif p is not None and ok and not held and tf in VISIBLE_TF and OBS_MIN[kind] <= p < threshold(tf, held):
+                        events.append({"ticker": t, "tf": tf, "kind": kind + "~", "bar": res["bar_forming"], "p": p, "obs": True})   # suivi seulement, pas de notification
             tfs[tf] = res
         if not tfs:
             continue
@@ -683,6 +691,8 @@ def select_new(events, state, holdings=frozenset(), positions=None):
     garde les anciennes règles (tout, toutes unités)."""
     new = []
     for e in events:
+        if e.get("obs"):
+            continue
         held = e["ticker"] in holdings
         if held and positions is not None:
             if not position_alert(e, positions.get(e["ticker"], [])):
@@ -803,7 +813,7 @@ def prune_state(state, keep_days=45):
     return out
 
 
-def deliver(events, data, state, push, app_url, seeding, holdings=frozenset(), positions=None):
+def deliver(events, data, state, push, app_url, seeding, holdings=frozenset(), positions=None, sent_log=None):
     """Envoie les nouvelles alertes ; retourne (nouvel état, nombre envoyé)."""
     new = select_new(events, state, holdings, positions)
     state = prune_state(state)
@@ -827,6 +837,8 @@ def deliver(events, data, state, push, app_url, seeding, holdings=frozenset(), p
             push(title, message, click, priority)
             mark(key, e)
             sent += 1
+            if sent_log is not None:
+                sent_log.append(e)
             time.sleep(0.4)
         except Exception as ex:
             print(f"Échec d'envoi {title} : {ex}", file=sys.stderr)
@@ -943,6 +955,13 @@ def merge_partial(prev, data):
     return merged
 
 
+def strip_recent(data):
+    """data.json public : sans le détail « recent » (résultats des dernières bougies, utilisé seulement par le suivi des alertes)."""
+    return {"meta": data["meta"],
+            "stocks": {t: {**s, "tf": {tf: {k: v for k, v in r.items() if k != "recent"} for tf, r in s["tf"].items()}}
+                       for t, s in data["stocks"].items()}}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-push", action="store_true", help="n'envoie rien et ne touche pas à state.json")
@@ -1009,7 +1028,7 @@ def main():
 
     DATA_FILE.parent.mkdir(exist_ok=True)
     tmp = DATA_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    tmp.write_text(json.dumps(strip_recent(data), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     tmp.replace(DATA_FILE)
 
     if args.no_push:
@@ -1021,8 +1040,15 @@ def main():
 
     seeding = not STATE_FILE.exists()
     state = json.loads(STATE_FILE.read_text(encoding="utf-8")) if not seeding else {}
-    state, sent = deliver(events, data, state, lambda t, msg, click, prio=3: ntfy_post(topic, t, msg, click, prio), app_url, seeding, holdings, positions)
+    sent_events = []
+    state, sent = deliver(events, data, state, lambda t, msg, click, prio=3: ntfy_post(topic, t, msg, click, prio), app_url, seeding, holdings, positions, sent_events)
     STATE_FILE.write_text(json.dumps(state, indent=1, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+    try:                                                      # suivi automatique des alertes et de leurs résultats réels (ne doit jamais bloquer le scan)
+        import tracker
+        st = tracker.run(events, data, sent_events, now)
+        print(f"Suivi des alertes : {st['logged']} configurations notées, {st['resolved']} résolues.")
+    except Exception as ex:
+        print(f"Suivi des alertes : erreur {ex}", file=sys.stderr)
     print("Premier passage : état initial mémorisé, aucune notification envoyée." if seeding
           else f"{sent} notification(s) envoyée(s)." + (f" Actions détenues : {', '.join(sorted(holdings))}." if holdings else ""))
 

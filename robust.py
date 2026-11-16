@@ -68,11 +68,16 @@ def collect(args, rng):
     ov = sc.load_pea_override()
     universe = {t: n for t, n in universe.items() if sc.pea_eligible(t, cache, ov)}
     daily = sc.download(list(universe), "max", "1d")
+    cleaned = {}
+    for t in list(daily):
+        daily[t], n_cut = profit.clean_series(daily[t])
+        if n_cut:
+            cleaned[t] = n_cut
     turn = {t: sc.turnover(daily[t]) for t in daily}
     ranked = sorted((t for t in daily if turn[t] >= sc.MIN_TURNOVER_EUR), key=lambda t: turn[t], reverse=True)
     if args.tickers:
         ranked = ranked[:args.tickers]
-    hourly = {} if args.no_4h else sc.download(ranked, "2y", "1h")
+    hourly = {} if args.no_4h else {t: profit.clean_series(df)[0] for t, df in sc.download(ranked, "2y", "1h").items()}
     now = pd.Timestamp.now(tz=sc.PARIS)
     print(f"{len(ranked)} actions.", flush=True)
     rows, base_rows, t0 = [], [], time.time()
@@ -118,7 +123,7 @@ def collect(args, rng):
                             base_rows.append({"strat": f"S|{tf}|{sv}|{name}", "ticker": t, "time": A["ends"][k], "ret": r[0] - fee_rt})
         if i % 20 == 0:
             print(f"  {i}/{len(ranked)} actions, {len(rows)} trades, {int(time.time() - t0)} s", flush=True)
-    return pd.DataFrame(rows), pd.DataFrame(base_rows), len(ranked)
+    return pd.DataFrame(rows), pd.DataFrame(base_rows), len(ranked), cleaned
 
 
 def analyse(rows, base, rng):
@@ -174,8 +179,10 @@ def main():
     ap.add_argument("--out", default="robust_report.md")
     args = ap.parse_args()
     rng = np.random.default_rng(2026)
-    rows, base, n = collect(args, rng)
-    head = [f"# Contrôle de robustesse — {n} actions françaises, frais {args.fee:.2f} % par ordre", ""]
+    rows, base, n, cleaned = collect(args, rng)
+    head = [f"# Contrôle de robustesse — {n} actions françaises, frais {args.fee:.2f} % par ordre", "",
+            "Historique tronqué après un saut de cours suspect (division / regroupement mal ajusté) pour : "
+            + (", ".join(f"{t} ({k} barres)" for t, k in cleaned.items()) or "aucune action") + ".", ""]
     text = "\n".join(head) + analyse(rows, base, rng)
     Path(args.out).write_text(text, encoding="utf-8")
     rows.to_csv("robust_trades.csv", index=False)

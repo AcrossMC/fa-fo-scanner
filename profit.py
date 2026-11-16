@@ -42,6 +42,20 @@ HOLDOUT = 0.30
 
 # ------------------------------------------------------------------ séries ------------------------------------------------------------------
 
+def clean_series(df, up=1.8, down=0.55):
+    """Données douteuses : un saut de cours d'une bougie à l'autre au-delà de +80 % / -45 % est presque toujours un regroupement ou une division d'actions
+    mal ajusté par Yahoo (ex. Atos 2024-25). On ne garde que l'historique APRÈS le dernier saut. Renvoie (série, nombre de bougies écartées)."""
+    c = df["Close"].to_numpy(dtype=float)
+    if len(c) < 2:
+        return df, 0
+    r = c[1:] / c[:-1]
+    bad = np.flatnonzero((r > up) | (r < down))
+    if not len(bad):
+        return df, 0
+    cut = int(bad[-1]) + 1
+    return df.iloc[cut:], cut
+
+
 def end_of(start, tf):
     if tf == "3mo":
         first = start.tz_localize(None).replace(day=1)
@@ -291,7 +305,9 @@ def report(fa, s, meta, fee):
             if r:
                 L.append(f"| {tf} | {lab} | {r['n']} | {pct(r['win'])} | {pct(r['gain'])} | {pct(r['loss'])} | **{pct(r['exp'], 2)}** | {pct(r['med'])} | "
                          f"{int(np.median([x['bars'] for x in sel]))} | {pct(np.mean([x['mae'] for x in sel]))} |")
-    L += ["", f"Fa encore ouvertes (ignorées) : {meta['fa_open']}.", ""]
+    L += ["", f"Fa encore ouvertes (ignorées) : {meta['fa_open']}.",
+          "Données : historique tronqué après un saut de cours suspect (division / regroupement mal ajusté) pour : "
+          + (", ".join(f"{t} ({n} barres écartées)" for t, n in meta.get("cleaned", {}).items()) or "aucune action") + ".", ""]
     L += ["## S haussière : stop loss et objectifs", "",
           "SL : **base** = plus bas de la bougie HA précédente · **app** = règle de l'application (+ bas du corps de la 1re Fa de l'UT inférieure, 2 ans seulement) · "
           "**atr1 / atr1.5** = base, mais distance au SL au moins 1 ou 1,5 fois l'amplitude moyenne (ATR 14). "
@@ -343,12 +359,17 @@ def main():
         universe = {t: n for t, n in universe.items() if sc.pea_eligible(t, cache, ov)}
     print(f"{len(universe)} actions dans l'univers (France).", flush=True)
     daily = sc.download(list(universe), "max", "1d")
+    cleaned = {}
+    for t in list(daily):
+        daily[t], n_cut = clean_series(daily[t])
+        if n_cut:
+            cleaned[t] = n_cut
     turn = {t: sc.turnover(daily[t]) for t in daily}
     ranked = sorted((t for t in daily if turn[t] >= args.min_turnover), key=lambda t: turn[t], reverse=True)
     if args.tickers:
         ranked = ranked[:args.tickers]
-    hourly = {} if args.no_4h else sc.download(ranked, "2y", "1h")
-    print(f"{len(ranked)} actions testées.", flush=True)
+    hourly = {} if args.no_4h else {t: clean_series(df)[0] for t, df in sc.download(ranked, "2y", "1h").items()}
+    print(f"{len(ranked)} actions testées ; historique tronqué après un saut suspect pour : {', '.join(f'{t} ({n} barres)' for t, n in cleaned.items()) or 'aucune'}.", flush=True)
 
     fa_all, s_all, fa_open, s_skipped, t0 = [], [], 0, 0, time.time()
     for i, t in enumerate(ranked, 1):
@@ -378,7 +399,7 @@ def main():
             print(f"  {i}/{len(ranked)} actions, {len(fa_all)} Fa, {len(s_all)} S, {int(time.time() - t0)} s", flush=True)
 
     start = min((daily[t].index[0] for t in ranked if t in daily), default=now).strftime("%Y-%m-%d")
-    meta = {"stocks": len(ranked), "start": start, "fa_open": fa_open, "s_skipped": s_skipped}
+    meta = {"stocks": len(ranked), "start": start, "fa_open": fa_open, "s_skipped": s_skipped, "cleaned": cleaned}
     text = report(fa_all, s_all, meta, fee)
     Path(args.out).write_text(text, encoding="utf-8")
     pd.DataFrame(fa_all).to_csv("profit_fa_trades.csv", index=False)

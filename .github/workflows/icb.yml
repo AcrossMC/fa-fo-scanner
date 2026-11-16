@@ -1,0 +1,36 @@
+name: Secteurs ICB
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "probe = test sur 5 actions (affiche ce qui est lu) ; update = met à jour icb.json"
+        default: "probe"
+  schedule:
+    - cron: "30 5 * * 0"        # chaque dimanche matin
+
+permissions:
+  contents: write
+
+jobs:
+  icb:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Test de lecture (probe)
+        if: inputs.mode == 'probe'
+        run: python icb.py --probe 2>&1 | tee probe.txt; { echo '```'; cat probe.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Mise à jour de icb.json
+        if: inputs.mode != 'probe'
+        run: |
+          python icb.py --update
+          git config user.name "fa-scanner"
+          git config user.email "fa-scanner@users.noreply.github.com"
+          git add icb.json
+          git diff --cached --quiet || { git commit -q -m "ICB $(date -u +%Y-%m-%d)"; git pull -q --rebase origin main; git push -q; }

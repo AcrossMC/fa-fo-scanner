@@ -131,22 +131,32 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     const ok = (p) => (p != null && p >= thr() ? p : null);
     return { fa: r.state !== "fa" ? ok(r.p_fa) : null, su: ok(r.p_s_up) };
   }
-  function sectorBuy(tfKey) {
-    const m = {};
-    for (const s of Object.values(data.stocks)) {
-      const r = s.tf[tfKey];
-      if (r && r.buy) m[s.sector || "Autres"] = (m[s.sector || "Autres"] || 0) + r.buy;
-    }
-    return m;
-  }
-  function rowsFor(tfKey, bucket) {
-    const sb = sectorBuy(tfKey), out = [];
+  // Filtre par secteur / thème (OR) : mémorisé sur ce téléphone
+  let secSel = [];
+  try { secSel = JSON.parse(store("secsel") || "[]"); } catch (e) { secSel = []; }
+  const tagsOf = (s) => [s.sector || "Autres", ...(s.themes || [])];
+  const passFilter = (s) => !secSel.length || tagsOf(s).some((x) => secSel.includes(x));
+  function rowsFor(tfKey, bucket, filtered = true) {
+    const out = [];
     for (const [t, s] of Object.entries(data.stocks)) {
       const r = s.tf[tfKey];
       const p = pend(r)[bucket === "fa" ? "fa" : "su"];
-      if (p != null) out.push({ t, s, r, p, sec: s.sector || "Autres", secBuy: sb[s.sector || "Autres"] || 0, buy: r.buy || 0 });
+      if (p != null && (!filtered || passFilter(s))) out.push({ t, s, r, p, sec: s.sector || "Autres", buy: r.buy || 0 });
     }
-    return out.sort((a, b) => b.secBuy - a.secBuy || (a.sec < b.sec ? -1 : a.sec > b.sec ? 1 : 0) || b.buy - a.buy || b.p - a.p);
+    return out.sort((a, b) => b.p - a.p || b.buy - a.buy || (a.t < b.t ? -1 : 1));      // pourcentage de réussite décroissant
+  }
+  function renderFilter() {
+    const box = $("secFilter");
+    if (view !== "scan" || !data || query.trim()) { box.hidden = true; return; }
+    const all = rowsFor(tf, st, false);
+    const secs = {}, ths = {};
+    for (const { s } of all) { secs[s.sector || "Autres"] = (secs[s.sector || "Autres"] || 0) + 1; for (const th of s.themes || []) ths[th] = (ths[th] || 0) + 1; }
+    secSel = secSel.filter((x) => secs[x] || ths[x]);
+    const chip = (name, n, kind) => `<button class="fchip${secSel.includes(name) ? " on" : ""}${kind === "th" ? " th" : ""}" data-sec="${esc(name)}">${esc(name)} <span class="muted">${n}</span></button>`;
+    const sortd = (o) => Object.entries(o).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    box.hidden = !all.length;
+    box.innerHTML = `<div class="frow"><button class="fchip${secSel.length ? "" : " on"}" data-sec="">Tous</button>${sortd(secs).map(([k, n]) => chip(k, n, "sec")).join("")}</div>`
+      + (Object.keys(ths).length ? `<div class="frow">${sortd(ths).map(([k, n]) => chip(k, n, "th")).join("")}</div>` : "");
   }
 
   function renderViews() {
@@ -178,13 +188,13 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     return `<button class="card ${st === "s" ? "sup" : "pending"}${isHeld(t) ? " held" : ""}" data-t="${esc(t)}">
       <div class="row"><span class="left">${isHeld(t) ? '<span class="star" aria-label="En position">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
       <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
-      <div class="secline"><span class="secbadge">${esc(row.sec)}</span><span class="muted">achats secteur ${fmtEur(row.secBuy)} · action ${fmtEur(row.buy)}</span></div>
+      <div class="secline"><span class="secbadge">${esc(row.sec)}</span>${(s.themes || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>
       <div class="pline"><span class="pbig">${st === "fa" ? dot("fa") : sq("up")}<b>${pct(p)}</b></span>
         <span class="pbar"><i class="${p >= (data.meta.prob_high ?? 0.6) ? "fa" : "mid"}" style="width:${Math.max(p * 100, 2)}%"></i></span>
         ${over ? '<span class="over">déjà au-dessus</span>' : ""}</div>
       ${others ? `<div class="chips">${others}</div>` : ""}</button>`;
   }
-  const LEGEND = `<div class="legend">${dot("fa")} Fa en cours ${sq("up")} S haussière en cours<span class="muted" style="width:100%">Classées par volume d'achat du secteur (montant échangé sur les bougies haussières de l'unité de temps), puis par action. Pourcentage = chance que la bougie en formation valide la configuration.</span></div>`;
+  const LEGEND = `<div class="legend">${dot("fa")} Fa en cours ${sq("up")} S haussière en cours<span class="muted" style="width:100%">Classées par pourcentage décroissant : chance que la bougie en formation valide la configuration. Filtrez par secteur ou thème ci-dessus.</span></div>`;
 
   function renderList() {
     if (!data || !Object.keys(data.stocks).length) {
@@ -261,7 +271,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       html += `<button class="card held pos" data-pos="${esc(posKey(p))}">
         <div class="row"><span class="left"><span class="star">⭐</span><span class="tick">${esc(short(p.t))}</span><span class="name">${esc(s.name)}</span></span>
         <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
-        <div class="secline"><span class="secbadge modebadge">${esc(modeLabel(p, pl))}</span><span class="muted">${esc(s.sector || "")}${pnl}</span></div>
+        <div class="secline"><span class="secbadge modebadge">${esc(modeLabel(p, pl))}</span><span class="muted">${esc(s.sector || "")}${pnl}</span></div>${(s.themes || []).length ? `<div class="secline">${s.themes.map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>` : ""}
         ${body}</button>`;
     }
     list.innerHTML = html;
@@ -281,7 +291,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       + `Le pourcentage est une estimation statistique, pas une prévision. Les stops et objectifs sont des repères calculés d'après vos règles, pas des ordres. Information indicative, pas un conseil en investissement.`;
   }
 
-  function render() { renderViews(); renderTabs(); renderList(); }
+  function render() { renderViews(); renderTabs(); renderFilter(); renderList(); }
 
   // ===================== Fiches =====================
   const probRow = (marker, label, p, cls) => {
@@ -338,6 +348,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     if (!s) { if (isHeld(t)) return; openUnknown(t); return; }
     if (!draft || draft.t !== t) draft = { t, c: null, tf: null };
     sheet.innerHTML = sheetHead(`${isHeld(t) ? "⭐ " : ""}${esc(short(t))}`, `${esc(s.name)} · ${fmtPrice(s.price)} · ${fmtChg(s.chg)}${s.sector ? " · " + esc(s.sector) : ""}`)
+      + ((s.themes || []).length ? `<div class="secline">${s.themes.map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>` : "")
       + `<div id="entryBox" class="entry"></div>`
       + `<div class="tf-table">${tfRows(s, isHeld(t))}</div>` + chartLinks(t, s.name, tf)
       + `<p class="note">Fa = démarre quand le haut du corps Heikin Ashi clôturé dépasse la Tenkan et une MM7 ascendante, dure jusqu'au Fo · Fo = le bas du corps passe sous la Tenkan et une MM7 descendante · S = bougie sans corps après des bougies de même sens (${sq("up")} haussière, ${sq("down")} baissière). Les pourcentages sont des estimations statistiques (simulation sur le temps restant de la bougie), pas des prévisions.</p>`;
@@ -561,6 +572,12 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
   stTabs.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-st]"); if (!b) return;
     st = b.dataset.st; store("st", st); render();
+  });
+  $("secFilter").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-sec]"); if (!b) return;
+    const k = b.dataset.sec;
+    if (!k) secSel = []; else secSel = secSel.includes(k) ? secSel.filter((x) => x !== k) : [...secSel, k];
+    store("secsel", JSON.stringify(secSel)); render();
   });
   list.addEventListener("click", (e) => {
     const add = e.target.closest("[data-add]");

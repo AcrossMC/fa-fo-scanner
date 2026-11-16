@@ -475,9 +475,18 @@ def test_modes():
 def test_levels_and_sectors():
     assert sc.parse_holdings("AIR.PA:S:4h:171.5,mc.pa:Fa:1d,-,RUI") == frozenset({"AIR.PA", "MC.PA", "RUI.PA"})
     data = {"stocks": {"AIR.PA": {}, "MC.PA": {}, "ZZ.PA": {}}}
-    cache = sc.apply_sectors(data, {"MC.PA": "Conso cyclique"}, lambda t: {"AIR.PA": "Industrials"}[t])
-    assert data["stocks"]["AIR.PA"]["sector"] == "Industrie" and data["stocks"]["MC.PA"]["sector"] == "Conso cyclique"
+    themes = {"MC.PA": ("Luxe, Mode & Cosmétiques", ["Luxe"])}
+    cache = sc.apply_sectors(data, {"OLD.PA": "Industrie"}, lambda t: {"AIR.PA": ("Industrials", "Aerospace & Defense")}[t], themes=themes)
+    assert data["stocks"]["AIR.PA"]["sector"] == "Aéronautique & Défense" and cache["AIR.PA"] == {"s": "Industrials", "i": "Aerospace & Defense"}
+    assert data["stocks"]["MC.PA"]["sector"] == "Luxe, Mode & Cosmétiques" and data["stocks"]["MC.PA"]["themes"] == ["Luxe"]
     assert data["stocks"]["ZZ.PA"]["sector"] == "Autres" and "ZZ.PA" not in cache                 # inconnu : réessayé au prochain passage
+    assert sc.sector_group("Solar", "Technology") == "Énergies renouvelables & Hydrogène" and sc.sector_group("", "Energy") == "Pétrole, Gaz & Services"
+    assert sc.sector_group("Auto Parts", "Consumer Cyclical") == "Automobile & Équipementiers" and sc.sector_group("Zzz", "") == "Autres"
+    assert sc.sector_group("Utilities - Renewable", "Utilities") == "Énergies renouvelables & Hydrogène" and sc.sector_group("Utilities - Regulated Gas", "Utilities") == "Services aux collectivités"
+    th = sc.load_themes()
+    uni = sc.load_universe()
+    assert all(t in th for t in uni), [t for t in uni if t not in th][:5]                          # themes.csv couvre universe.csv
+    assert th["AIR.PA"] == ("Aéronautique & Défense", ["Défense", "Spatial"]) and len({g for g, _ in th.values()}) <= 30
     print("OK levels_and_sectors")
 
 

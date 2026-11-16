@@ -1,0 +1,211 @@
+# Secteur principal et thèmes de chaque action (modifiable). Colonnes : ticker, secteur, thèmes séparés par « | ».
+# Les actions absentes de ce fichier prennent le secteur déduit de l'industrie Yahoo (voir INDUSTRY_RULES dans scanner.py).
+# Les thèmes sont indicatifs (exposition principale, pas une garantie) : corrigez-les librement.
+ticker,secteur,themes
+AI.PA,"Chimie, Acier & Matériaux",Hydrogène
+AIR.PA,Aéronautique & Défense,Défense|Spatial
+ALO.PA,Industrie & Équipements,Ferroviaire
+MT.PA,"Chimie, Acier & Matériaux",Acier
+CS.PA,"Assurance, Gestion d'actifs & Marchés",
+BNP.PA,Banques,
+EN.PA,Construction & Matériaux,Télécoms
+CAP.PA,Services informatiques & Conseil,IA
+CA.PA,Distribution & E-commerce,
+ACA.PA,Banques,
+BN.PA,Agroalimentaire & Boissons,
+DSY.PA,"Logiciels, IA & Cloud",IA
+ENGI.PA,Services aux collectivités,Énergies renouvelables|Nucléaire
+EL.PA,Pharma & Santé,Dispositifs médicaux
+ERF.PA,Pharma & Santé,Diagnostic
+RMS.PA,"Luxe, Mode & Cosmétiques",
+KER.PA,"Luxe, Mode & Cosmétiques",
+OR.PA,"Luxe, Mode & Cosmétiques",
+LR.PA,Industrie & Équipements,Électrification
+MC.PA,"Luxe, Mode & Cosmétiques",
+ML.PA,Automobile & Équipementiers,
+ORA.PA,Télécoms & Médias,
+RI.PA,Agroalimentaire & Boissons,
+PUB.PA,Télécoms & Médias,Publicité
+RNO.PA,Automobile & Équipementiers,Véhicule électrique
+SAF.PA,Aéronautique & Défense,Défense
+SGO.PA,Construction & Matériaux,
+SAN.PA,Pharma & Santé,
+SU.PA,Industrie & Équipements,Électrification|Data centers
+GLE.PA,Banques,
+STLAP.PA,Automobile & Équipementiers,Véhicule électrique
+STMPA.PA,Semi-conducteurs & Électronique,Véhicule électrique
+TEP.PA,Services aux entreprises,IA
+HO.PA,Aéronautique & Défense,Défense|Cybersécurité|Spatial
+TTE.PA,"Pétrole, Gaz & Services",Énergies renouvelables
+URW.PA,Immobilier & Foncières,
+VIE.PA,Services aux collectivités,Environnement
+DG.PA,Construction & Matériaux,Concessions
+ADP.PA,Transport & Logistique,Aéroports
+AF.PA,Transport & Logistique,Aérien
+AKE.PA,"Chimie, Acier & Matériaux",
+AM.PA,Aéronautique & Défense,Défense
+AMUN.PA,"Assurance, Gestion d'actifs & Marchés",
+ATE.PA,Services informatiques & Conseil,Ingénierie
+ATO.PA,Services informatiques & Conseil,Cybersécurité|Cloud
+AYV.PA,Automobile & Équipementiers,
+BIM.PA,Pharma & Santé,Diagnostic
+BOL.PA,Télécoms & Médias,Logistique
+BVI.PA,Services aux entreprises,
+CO.PA,Distribution & E-commerce,
+COV.PA,Immobilier & Foncières,
+DBG.PA,Services aux entreprises,Environnement
+DEC.PA,Télécoms & Médias,Publicité
+DIM.PA,Pharma & Santé,Biotechnologies
+EDEN.PA,Services aux entreprises,Paiement
+ELIS.PA,Services aux entreprises,
+EMEIS.PA,Services de santé,
+ENX.PA,"Assurance, Gestion d'actifs & Marchés",
+ERA.PA,"Chimie, Acier & Matériaux",Métaux|Véhicule électrique
+ETL.PA,Télécoms & Médias,Spatial
+EXA.PA,Aéronautique & Défense,Défense
+FDJ.PA,"Tourisme, Hôtels & Loisirs",Jeux d'argent
+FGR.PA,Construction & Matériaux,
+FNAC.PA,Distribution & E-commerce,
+FRVIA.PA,Automobile & Équipementiers,Véhicule électrique
+GET.PA,Transport & Logistique,
+GFC.PA,Immobilier & Foncières,
+GTT.PA,"Pétrole, Gaz & Services",GNL
+ICAD.PA,Immobilier & Foncières,
+IPN.PA,Pharma & Santé,
+IPS.PA,Services aux entreprises,
+KOF.PA,Immobilier & Foncières,
+LI.PA,Immobilier & Foncières,
+MF.PA,"Assurance, Gestion d'actifs & Marchés",
+MMB.PA,Télécoms & Médias,
+MRN.PA,Industrie & Équipements,Électrification|Semi-conducteurs
+NEX.PA,Industrie & Équipements,Électrification|Énergies renouvelables
+NK.PA,"Chimie, Acier & Matériaux",
+NXI.PA,Immobilier & Foncières,
+OVH.PA,"Logiciels, IA & Cloud",Cloud|IA
+PLX.PA,Services aux entreprises,Paiement
+RCO.PA,Agroalimentaire & Boissons,
+RF.PA,"Assurance, Gestion d'actifs & Marchés",
+RUI.PA,"Pétrole, Gaz & Services",
+RXL.PA,Industrie & Équipements,Électrification
+SCR.PA,"Assurance, Gestion d'actifs & Marchés",
+SK.PA,Biens de consommation & Loisirs,
+SOI.PA,Semi-conducteurs & Électronique,Véhicule électrique
+SOP.PA,Services informatiques & Conseil,
+SPIE.PA,Services aux entreprises,Électrification|Data centers
+SW.PA,Services aux entreprises,
+TE.PA,"Pétrole, Gaz & Services",Hydrogène|Énergies renouvelables
+TFI.PA,Télécoms & Médias,
+TKO.PA,"Assurance, Gestion d'actifs & Marchés",
+TRI.PA,Biens de consommation & Loisirs,
+UBI.PA,Jeux vidéo & Divertissement,
+VIRP.PA,Pharma & Santé,Vétérinaire
+VIV.PA,Télécoms & Médias,
+VK.PA,"Pétrole, Gaz & Services",
+VLA.PA,Biotechnologies,
+VRLA.PA,"Chimie, Acier & Matériaux",
+WLN.PA,Services informatiques & Conseil,Paiement
+VCT.PA,Construction & Matériaux,
+CDA.PA,"Tourisme, Hôtels & Loisirs",
+ABCA.PA,"Assurance, Gestion d'actifs & Marchés",
+AC.PA,"Tourisme, Hôtels & Loisirs",
+FR.PA,Automobile & Équipementiers,Véhicule électrique
+POM.PA,Automobile & Équipementiers,
+FFP.PA,"Assurance, Gestion d'actifs & Marchés",
+ODET.PA,Télécoms & Médias,
+BB.PA,Biens de consommation & Loisirs,
+ITP.PA,"Luxe, Mode & Cosmétiques",
+SAVE.PA,Agroalimentaire & Boissons,
+BON.PA,Agroalimentaire & Boissons,
+LOUP.PA,Agroalimentaire & Boissons,
+ALFLE.PA,Agroalimentaire & Boissons,
+RBT.PA,"Chimie, Acier & Matériaux",Parfums
+SBT.PA,Agroalimentaire & Boissons,
+VRAP.PA,Agroalimentaire & Boissons,
+VETO.PA,Pharma & Santé,Vétérinaire
+VIL.PA,Agroalimentaire & Boissons,Semences
+BOI.PA,Pharma & Santé,
+GBT.PA,Pharma & Santé,
+BLC.PA,Services de santé,
+LNA.PA,Services de santé,
+CLARI.PA,Services de santé,
+ELIOR.PA,Services aux entreprises,
+MDM.PA,Distribution & E-commerce,
+BEN.PA,Biens de consommation & Loisirs,
+AKW.PA,Automobile & Équipementiers,
+FII.PA,Aéronautique & Défense,Automobile
+FLY.PA,Aéronautique & Défense,
+MTU.PA,Industrie & Équipements,
+PIG.PA,Industrie & Équipements,
+LSS.PA,"Logiciels, IA & Cloud",
+STF.PA,Transport & Logistique,
+IDL.PA,Transport & Logistique,
+SAMS.PA,Construction & Matériaux,
+THEP.PA,Construction & Matériaux,
+TOUP.PA,Transport & Logistique,
+JCQ.PA,"Chimie, Acier & Matériaux",Acier
+TKTT.PA,Construction & Matériaux,
+M6.PA,Télécoms & Médias,
+GUI.PA,Jeux vidéo & Divertissement,
+NACON.PA,Jeux vidéo & Divertissement,
+ALATA.PA,Jeux vidéo & Divertissement,
+DEEZR.PA,Jeux vidéo & Divertissement,Musique
+SESG.PA,Télécoms & Médias,Spatial
+ALTA.PA,Immobilier & Foncières,
+ARG.PA,Immobilier & Foncières,
+FREY.PA,Immobilier & Foncières,
+MERY.PA,Immobilier & Foncières,
+CARM.PA,Immobilier & Foncières,
+COFA.PA,"Assurance, Gestion d'actifs & Marchés",
+ANTIN.PA,"Assurance, Gestion d'actifs & Marchés",
+CRI.PA,"Chimie, Acier & Matériaux",
+GLO.PA,Services aux entreprises,
+VAC.PA,"Tourisme, Hôtels & Loisirs",
+VDM.PA,"Tourisme, Hôtels & Loisirs",
+ARAMI.PA,Distribution & E-commerce,
+SMCP.PA,"Luxe, Mode & Cosmétiques",
+PWG.PA,Industrie & Équipements,Impression 3D
+S30.PA,Services aux entreprises,
+SDG.PA,Services aux entreprises,
+SII.PA,Services informatiques & Conseil,
+AUB.PA,Services informatiques & Conseil,
+AXW.PA,"Logiciels, IA & Cloud",
+ASY.PA,Services informatiques & Conseil,Nucléaire|Ingénierie
+WAVE.PA,Services informatiques & Conseil,
+CGM.PA,"Logiciels, IA & Cloud",
+LIN.PA,"Logiciels, IA & Cloud",
+MAN.PA,Distribution & E-commerce,
+ALESK.PA,"Logiciels, IA & Cloud",IA
+ALBFR.PA,"Logiciels, IA & Cloud",IA
+ALLIX.PA,"Logiciels, IA & Cloud",Cybersécurité
+ATEME.PA,"Logiciels, IA & Cloud",
+CLA.PA,"Logiciels, IA & Cloud",
+AL2SI.PA,Semi-conducteurs & Électronique,IA|Data centers
+LBIRD.PA,Semi-conducteurs & Électronique,Lasers
+PLNW.PA,"Logiciels, IA & Cloud",
+EXENS.PA,Semi-conducteurs & Électronique,Défense
+VU.PA,Semi-conducteurs & Électronique,
+EKI.PA,Télécoms & Médias,
+NRO.PA,Services informatiques & Conseil,
+ABEO.PA,Biens de consommation & Loisirs,
+HIPAY.PA,Services informatiques & Conseil,Paiement
+VIRI.PA,"Pétrole, Gaz & Services",Calcul haute performance
+MAU.PA,"Pétrole, Gaz & Services",
+VLTSA.PA,Énergies renouvelables & Hydrogène,
+MCPHY.PA,Énergies renouvelables & Hydrogène,Hydrogène
+LHYFE.PA,Énergies renouvelables & Hydrogène,Hydrogène
+ALCRB.PA,"Chimie, Acier & Matériaux",Environnement
+SCHP.PA,Services aux collectivités,Environnement
+EAPI.PA,Pharma & Santé,
+DBV.PA,Biotechnologies,
+GNFT.PA,Biotechnologies,
+NANO.PA,Biotechnologies,
+MEDCL.PA,Biotechnologies,
+TNG.PA,Biotechnologies,
+OSE.PA,Biotechnologies,
+ALCLS.PA,Biotechnologies,
+IVA.PA,Biotechnologies,
+COX.PA,Biotechnologies,
+ALHEX.PA,Construction & Matériaux,
+ALHOP.PA,Services aux entreprises,Publicité
+INF.PA,Services informatiques & Conseil,
+XFAB.PA,Semi-conducteurs & Électronique,

@@ -917,30 +917,111 @@ SECTOR_FR = {"Technology": "Technologie", "Healthcare": "Santé", "Financial Ser
              "Consumer Defensive": "Conso défensive", "Industrials": "Industrie", "Basic Materials": "Matériaux", "Energy": "Énergie",
              "Utilities": "Services publics", "Real Estate": "Immobilier", "Communication Services": "Communication"}
 SECTORS_FILE = HERE / "sectors.json"
+THEMES_FILE = HERE / "themes.csv"
+
+# Industrie Yahoo (anglais, mots-clés en minuscules) -> secteur principal. Premier mot-clé trouvé. Sert aux actions absentes de themes.csv.
+INDUSTRY_RULES = [
+    ("aerospace", "Aéronautique & Défense"), ("defense", "Aéronautique & Défense"),
+    ("auto", "Automobile & Équipementiers"), ("recreational vehicles", "Biens de consommation & Loisirs"),
+    ("banks", "Banques"), ("insurance", "Assurance, Gestion d'actifs & Marchés"), ("asset management", "Assurance, Gestion d'actifs & Marchés"),
+    ("capital markets", "Assurance, Gestion d'actifs & Marchés"), ("financial", "Assurance, Gestion d'actifs & Marchés"),
+    ("credit services", "Assurance, Gestion d'actifs & Marchés"), ("conglomerates", "Assurance, Gestion d'actifs & Marchés"),
+    ("biotech", "Biotechnologies"), ("medical care", "Services de santé"), ("pharma", "Pharma & Santé"), ("drug", "Pharma & Santé"),
+    ("medical", "Pharma & Santé"), ("diagnostics", "Pharma & Santé"), ("health", "Pharma & Santé"),
+    ("solar", "Énergies renouvelables & Hydrogène"), ("renewable", "Énergies renouvelables & Hydrogène"),
+    ("utilities", "Services aux collectivités"), ("waste", "Services aux collectivités"),
+    ("oil", "Pétrole, Gaz & Services"), ("gas", "Pétrole, Gaz & Services"), ("coal", "Pétrole, Gaz & Services"), ("uranium", "Pétrole, Gaz & Services"),
+    ("semiconductor", "Semi-conducteurs & Électronique"), ("electronic", "Semi-conducteurs & Électronique"), ("computer hardware", "Semi-conducteurs & Électronique"),
+    ("scientific", "Semi-conducteurs & Électronique"),
+    ("software", "Logiciels, IA & Cloud"), ("information technology services", "Services informatiques & Conseil"),
+    ("consulting", "Services informatiques & Conseil"), ("data processing", "Services informatiques & Conseil"),
+    ("gaming", "Jeux vidéo & Divertissement"), ("entertainment", "Jeux vidéo & Divertissement"), ("gambling", "Tourisme, Hôtels & Loisirs"),
+    ("telecom", "Télécoms & Médias"), ("broadcasting", "Télécoms & Médias"), ("publishing", "Télécoms & Médias"), ("advertising", "Télécoms & Médias"),
+    ("internet content", "Télécoms & Médias"),
+    ("grocery", "Distribution & E-commerce"), ("retail", "Distribution & E-commerce"), ("department", "Distribution & E-commerce"),
+    ("beverages", "Agroalimentaire & Boissons"), ("packaged foods", "Agroalimentaire & Boissons"), ("farm", "Agroalimentaire & Boissons"),
+    ("confection", "Agroalimentaire & Boissons"), ("food", "Agroalimentaire & Boissons"), ("tobacco", "Agroalimentaire & Boissons"),
+    ("luxury", "Luxe, Mode & Cosmétiques"), ("apparel", "Luxe, Mode & Cosmétiques"), ("footwear", "Luxe, Mode & Cosmétiques"),
+    ("personal products", "Luxe, Mode & Cosmétiques"), ("household", "Biens de consommation & Loisirs"), ("leisure", "Biens de consommation & Loisirs"),
+    ("furnishings", "Biens de consommation & Loisirs"), ("lodging", "Tourisme, Hôtels & Loisirs"), ("resorts", "Tourisme, Hôtels & Loisirs"),
+    ("travel", "Tourisme, Hôtels & Loisirs"), ("restaurants", "Tourisme, Hôtels & Loisirs"),
+    ("engineering", "Construction & Matériaux"), ("construction", "Construction & Matériaux"), ("building", "Construction & Matériaux"),
+    ("infrastructure", "Construction & Matériaux"), ("cement", "Construction & Matériaux"),
+    ("reit", "Immobilier & Foncières"), ("real estate", "Immobilier & Foncières"),
+    ("electrical", "Industrie & Équipements"), ("machinery", "Industrie & Équipements"), ("industrial", "Industrie & Équipements"), ("tools", "Industrie & Équipements"),
+    ("airlines", "Transport & Logistique"), ("railroads", "Transport & Logistique"), ("trucking", "Transport & Logistique"), ("marine", "Transport & Logistique"),
+    ("airports", "Transport & Logistique"), ("logistics", "Transport & Logistique"), ("freight", "Transport & Logistique"),
+    ("chemicals", "Chimie, Acier & Matériaux"), ("steel", "Chimie, Acier & Matériaux"), ("aluminum", "Chimie, Acier & Matériaux"),
+    ("copper", "Chimie, Acier & Matériaux"), ("gold", "Chimie, Acier & Matériaux"), ("packaging", "Chimie, Acier & Matériaux"), ("paper", "Chimie, Acier & Matériaux"),
+    ("staffing", "Services aux entreprises"), ("security", "Services aux entreprises"), ("business services", "Services aux entreprises"),
+    ("rental", "Services aux entreprises"), ("specialty business", "Services aux entreprises"),
+]
+# Secteur Yahoo (anglais) -> secteur principal, quand l'industrie ne permet pas de conclure
+SECTOR_FALLBACK = {"Technology": "Logiciels, IA & Cloud", "Healthcare": "Pharma & Santé", "Financial Services": "Assurance, Gestion d'actifs & Marchés",
+                   "Consumer Cyclical": "Biens de consommation & Loisirs", "Consumer Defensive": "Agroalimentaire & Boissons",
+                   "Industrials": "Industrie & Équipements", "Basic Materials": "Chimie, Acier & Matériaux", "Energy": "Pétrole, Gaz & Services",
+                   "Utilities": "Services aux collectivités", "Real Estate": "Immobilier & Foncières", "Communication Services": "Télécoms & Médias"}
+SECTOR_EN = {v: k for k, v in SECTOR_FR.items()}               # anciens caches : secteur français -> anglais
 
 
-def apply_sectors(data, cache, lookup, limit=60):
-    """Ajoute le secteur à chaque action (cache sectors.json) ; en cherche jusqu'à `limit` nouveaux par passage via `lookup(ticker)`."""
-    todo = [t for t in data["stocks"] if t not in cache]
+def load_themes(path=THEMES_FILE):
+    """themes.csv -> {ticker: (secteur, [thèmes])}."""
+    out = {}
+    try:
+        lines = [l for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip() and not l.lstrip().startswith("#")]
+    except OSError:
+        return out
+    for row in csv.reader(lines[1:] if lines and lines[0].lower().startswith("ticker") else lines):
+        if len(row) >= 2 and row[0].strip():
+            t = row[0].strip().upper()
+            out[t if "." in t else t + ".PA"] = (row[1].strip() or "Autres", [x.strip() for x in (row[2] if len(row) > 2 else "").split("|") if x.strip()])
+    return out
+
+
+def sector_group(industry, sector):
+    """Secteur principal d'après l'industrie Yahoo, à défaut le grand secteur Yahoo."""
+    low = (industry or "").lower()
+    for kw, group in INDUSTRY_RULES:
+        if kw in low:
+            return group
+    return SECTOR_FALLBACK.get(sector or "", "Autres")
+
+
+def apply_sectors(data, cache, lookup, limit=60, themes=None):
+    """Ajoute secteur principal et thèmes à chaque action. themes.csv a priorité ; sinon industrie Yahoo (cache sectors.json, jusqu'à
+    `limit` nouvelles recherches par passage via `lookup(ticker)` -> (secteur, industrie))."""
+    themes = load_themes() if themes is None else themes
+    todo = [t for t in data["stocks"] if t not in themes and not isinstance(cache.get(t), dict)]
     fails = 0
     for t in todo[:limit]:
         try:
-            sec = lookup(t)
+            res = lookup(t)
             fails = 0
         except Exception:
-            sec, fails = None, fails + 1
+            res, fails = None, fails + 1
             if fails >= 5:                                   # Yahoo limite les requêtes : on réessaiera au prochain passage
                 break
-        if sec is not None:
-            cache[t] = SECTOR_FR.get(sec, sec or "Autres") if sec else "Autres"
+        if res is not None:
+            sec, ind = res if isinstance(res, tuple) else (res, "")
+            cache[t] = {"s": sec or "", "i": ind or ""}
     for t, stock in data["stocks"].items():
-        stock["sector"] = cache.get(t, "Autres")
+        if t in themes:
+            stock["sector"], stock["themes"] = themes[t][0], list(themes[t][1])
+            continue
+        c = cache.get(t)
+        if isinstance(c, dict):
+            stock["sector"], stock["themes"] = sector_group(c.get("i"), c.get("s")), []
+        elif isinstance(c, str):                             # ancien format du cache : secteur français seul
+            stock["sector"], stock["themes"] = sector_group("", SECTOR_EN.get(c, c)), []
+        else:
+            stock["sector"], stock["themes"] = "Autres", []
     return cache
 
 
 def yahoo_sector(t):
     import yfinance as yf
-    return (yf.Ticker(t).info or {}).get("sector") or ""
+    info = yf.Ticker(t).info or {}
+    return info.get("sector") or "", info.get("industry") or ""
 
 
 def merge_partial(prev, data):

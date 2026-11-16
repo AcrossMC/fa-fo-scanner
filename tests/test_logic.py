@@ -564,6 +564,32 @@ def test_icb():
     assert data["stocks"]["X.PA"]["sector"] == "Aéronautique & Défense" and called == ["Y.PA"], (data, called)
 
 
+def test_lines_3mo():
+    rng = np.random.default_rng(3)
+    idx = pd.bdate_range("2021-01-01", "2026-11-13", tz=sc.PARIS)
+    c = 100 * np.exp(np.cumsum(rng.normal(0, .01, len(idx))))
+    df = pd.DataFrame({"Open": c, "High": c * 1.01, "Low": c * .99, "Close": c, "Volume": 1e6}, index=idx)
+    q = sc.aggregate(df, "3mo")
+    assert q.index[0].month == 1 and set(q.index.month) <= {1, 4, 7, 10}, q.index[:5]
+    lv = sc.lines_3mo(df)
+    assert lv and lv["tk"] > 0 and "7" in lv["ma"] and isinstance(lv["mm7_dn"], bool), lv
+    assert sc.lines_3mo(df.iloc[:120]) is None
+
+
+def test_s_cancelled_after_s():
+    """Une bougie sans corps juste avant interrompt la série rouge : pas de nouveau S (cas UBI 4h)."""
+    n = 40
+    idx = pd.date_range("2026-06-01", periods=n, freq="B", tz=sc.PARIS)
+    c = np.r_[np.linspace(100, 110, 25), np.linspace(110, 96, 12), [96.0, 96.0, 96.1]]
+    o = np.r_[c[0], c[:-1]]
+    h, l = np.maximum(o, c) * 1.004, np.minimum(o, c) * 0.996
+    df = pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=idx)
+    r = sc.analyze_tf(df, "1d", idx[-1] + pd.Timedelta(hours=12), np.random.default_rng(0))
+    assert r["hist"].count("n") <= 2 and (r["hist"][-1] != "n" or not r["p_s_up"]), r["hist"]
+    if r["hist"].endswith("n"):
+        assert not r["p_s_up"], (r["hist"], r["p_s_up"])
+
+
 def test_backtest():
     import backtest as bt
     r = np.random.default_rng(5)
@@ -650,6 +676,8 @@ if __name__ == "__main__":
     test_modes()
     test_levels_and_sectors()
     test_icb()
+    test_s_cancelled_after_s()
+    test_lines_3mo()
     test_holdings_always_scanned()
     test_calibration()
     test_tracker()

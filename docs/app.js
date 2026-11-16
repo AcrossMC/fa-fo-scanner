@@ -83,7 +83,7 @@
   // S : SL = la plus haute de deux valeurs : plus bas (mèche ou corps) de la bougie HA précédente, ou bas du corps de la 1re bougie
   //     de la Fa en cours dans l'UT inférieure. Fa : pas de SL, sortie par un TP ou par un Fo dans la même UT.
   // S devenue Fa dans la même UT (Fa apparue après l'entrée) : plus de SL, sorties de la Fa.
-  // TP : MM7 (HA), MM20/50/100/200 (classiques) de la même UT, ou « Fo » de l'UT supérieure : Tenkan, MM7 si baissière.
+  // TP : MM7 (HA), MM20/50/100/200 (classiques) de la même UT, ou « Fo » des UT supérieures (jusqu'à 3 mois) : Tenkan, MM7 si baissière.
   function plan(p, s) {
     if (p.c === "O" || !p.c || !p.tf) return { other: true };
     const r = s.tf[p.tf];
@@ -105,10 +105,14 @@
       const v = r.lv.ma[k];
       if (v != null) cands.push({ v, label: `MM${k} ${TF_LAB[p.tf]}`, kind: "MM" });
     }
-    const hi = higherTf(p.tf), hr = hi && s.tf[hi];
-    if (hr && hr.lv) {
-      cands.push({ v: hr.lv.tk, label: `Fo ${TF_LAB[hi]} : Tenkan ${TF_LAB[hi]}`, kind: "Fo" });
-      if (hr.lv.mm7_dn && hr.lv.ma["7"] != null) cands.push({ v: hr.lv.ma["7"], label: `Fo ${TF_LAB[hi]} : MM7 baissière ${TF_LAB[hi]}`, kind: "Fo" });
+    // Toutes les UT supérieures jusqu'au trimestre : Tenkan, et MM7 (HA) si elle est baissière
+    const order = ["1h", "4h", "1d", "1w", "1mo", "3mo"];
+    for (const hi of order.slice(order.indexOf(p.tf) + 1)) {
+      const lv = hi === "3mo" ? s.lv3m : s.tf[hi] && s.tf[hi].lv;
+      if (!lv) continue;
+      const lab = hi === "3mo" ? "3 mois" : TF_LAB[hi];
+      cands.push({ v: lv.tk, label: `Fo ${lab} : Tenkan ${lab}`, kind: "Fo" });
+      if (lv.mm7_dn && lv.ma["7"] != null) cands.push({ v: lv.ma["7"], label: `Fo ${lab} : MM7 baissière ${lab}`, kind: "Fo" });
     }
     cands.sort((x, y) => x.v - y.v);
     const tps = cands.filter((c) => c.v > price).slice(0, 5);
@@ -126,6 +130,11 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
   // ===================== Scanner : « en cours de validation », classé par volume d'achat du secteur =====================
   const visibleTf = () => (data && data.meta.visible_tf) || ["4h", "1d", "1w", "1mo"];
   const thr = () => (data.meta.prob_min ?? 0.3);
+  // Dernières bougies HA clôturées (🔴 rouge / 🟢 verte / ⚪ sans corps), pour contrôler d'un coup d'œil la série qui précède un S
+  function histRow(h, want) {
+    if (!h) return "";
+    return `<div class="since">Bougies HA précédentes (la plus récente à droite) : ${[...h].map((x) => (x === "r" ? "🔴" : x === "n" ? "⚪" : "🟢")).join("")}</div>`;
+  }
   function pend(r) {
     if (!r || !r.forming) return {};
     const ok = (p) => (p != null && p >= thr() ? p : null);
@@ -318,8 +327,8 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
                 ? probRow(dot("fo"), "Fo maintenu", Math.max(0, 1 - r.p_fa), "fo") + probRow(dot("fa"), "Validation Fa", r.p_fa, "fa")
                 : probRow(dot("fa"), "Validation Fa", r.p_fa, "fa") + probRow(dot("fo"), "Validation Fo", r.p_fo, "fo"))
             : (r.state === "fa" ? `<div class="since">Déjà en Fa.</div>` : probRow(dot("fa"), "Validation Fa", r.p_fa, "fa")))
-          + (r.p_s_up > 0 ? probRow(sq("up"), "S haussière", r.p_s_up, "fa") : "")
-          + (held && r.p_s_down > 0 ? probRow(sq("down"), "S baissière", r.p_s_down, "fo") : "") + `</div>`;
+          + (r.p_s_up > 0 ? probRow(sq("up"), "S haussière", r.p_s_up, "fa") + histRow(r.hist, "r") : "")
+          + (held && r.p_s_down > 0 ? probRow(sq("down"), "S baissière", r.p_s_down, "fo") + histRow(r.hist, "v") : "") + `</div>`;
       } else {
         probs = `<div class="probs"><div class="ptitle muted">${r.forming ? "Probabilités indisponibles" : "Marché fermé : la prochaine bougie s'ouvre à la reprise"}</div></div>`;
       }

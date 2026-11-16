@@ -275,6 +275,8 @@ def aggregate(df, tf):
         key = naive.normalize() - pd.to_timedelta(naive.weekday, unit="D")
     elif tf == "1mo":
         key = naive.normalize() - pd.to_timedelta(naive.day - 1, unit="D")
+    elif tf == "3mo":
+        key = pd.DatetimeIndex(pd.to_datetime(pd.DataFrame({"year": naive.year, "month": (naive.month - 1) // 3 * 3 + 1, "day": 1}))) if len(naive) else naive
     else:
         raise ValueError(tf)
     g = df.groupby(key)
@@ -358,6 +360,23 @@ def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur):
     }
 
 
+def lines_3mo(daily):
+    """Niveaux du trimestre (3 mois) pour les objectifs de sortie : Tenkan et MM7 (Heikin Ashi) ; None si l'historique est trop court."""
+    try:
+        q = aggregate(daily, "3mo").dropna(subset=["Open", "High", "Low", "Close"])
+        if len(q) < max(MA_PERIOD, TENKAN_PERIOD) + 2:
+            return None
+        o, h, l, c = (q[k].to_numpy(dtype=float) for k in ("Open", "High", "Low", "Close"))
+        hao, hah, hal, hac = heikin_ashi(o, h, l, c)
+        sh, sl, sc = (hah, hal, hac) if INDICATORS_ON == "ha" else (h, l, c)
+        mm, tk = lines(sh, sl, sc)
+        if not (np.isfinite(mm[-1]) and np.isfinite(tk[-1]) and np.isfinite(mm[-2])):
+            return None
+        return {"tk": px(tk[-1]), "ma": {"7": px(mm[-1])}, "mm7_dn": bool(mm[-1] < mm[-2])}
+    except Exception:
+        return None
+
+
 def analyze_tf(df, tf, now_eff, rng):
     df = df.dropna(subset=["Open", "High", "Low", "Close"])
     if len(df) < MIN_BARS:
@@ -383,8 +402,9 @@ def analyze_tf(df, tf, now_eff, rng):
     #   S+ (haussière) : après des bougies baissières | S- (baissière) : après des bougies vertes
     rng_h = hah - hal
     nobody = (rng_h > 0) & (np.abs(hac - hao) <= S_BODY_MAX * rng_h)
-    bear = hac < hao
-    bull = hac > hao
+    # une bougie sans corps n'est ni rouge ni verte : elle interrompt la série (un S déjà apparu annule le suivant)
+    bear = (hac < hao) & ~nobody
+    bull = (hac > hao) & ~nobody
     # bougies « propres » : baissière sans (ou peu de) mèche au-dessus du corps / haussière sans mèche sous le corps
     bear_clean = bear & (rng_h > 0) & ((hah - np.maximum(hao, hac)) <= S_WICK_MAX * rng_h)
     bull_clean = bull & (rng_h > 0) & ((np.minimum(hao, hac) - hal) <= S_WICK_MAX * rng_h)
@@ -433,6 +453,7 @@ def analyze_tf(df, tf, now_eff, rng):
         "over": {"fa": bool(forming and cls[-1] == 1),     # la bougie en formation remplit déjà Fa / Fo
                  "fo": bool(forming and cls[-1] == -1)},
         "recent": recent,
+        "hist": "".join("n" if nobody[k] else "v" if hac[k] > hao[k] else "r" for k in range(max(0, nc - 8), nc)),   # couleur HA des dernières bougies clôturées (r = rouge, v = verte), pour vérifier S
         "p_fa": None,
         "p_fo": None,
         "p_s_up": None,
@@ -626,6 +647,9 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
         price = float(closes.iloc[-1])
         prev = float(closes.iloc[-2]) if len(closes) > 1 else price
         stocks[t] = {"name": universe[t], "price": px(price), "chg": round((price / prev - 1) * 100, 2), "tf": tfs}
+        lv3 = lines_3mo(daily[t])
+        if lv3:
+            stocks[t]["lv3m"] = lv3
         for pos in (positions or {}).get(t, []):             # alerte « stop loss bientôt touché » (positions S)
             sl, mode = position_sl(pos, stocks[t])
             r = tfs.get(pos.get("tf"))

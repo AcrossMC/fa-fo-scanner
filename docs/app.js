@@ -136,9 +136,11 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     return `<div class="since">Bougies HA précédentes (la plus récente à droite) : ${[...h].map((x) => (x === "r" ? "🔴" : x === "n" ? "⚪" : "🟢")).join("")}</div>`;
   }
   function pend(r) {
-    if (!r || !r.forming) return {};
+    if (!r) return {};
     const ok = (p) => (p != null && p >= thr() ? p : null);
-    return { fa: r.state !== "fa" ? ok(r.p_fa) : null, su: ok(r.p_s_up) };
+    if (r.forming) return { fa: r.state !== "fa" ? ok(r.p_fa) : null, su: ok(r.p_s_up) };
+    if (r.closed) return { fa: ok(r.closed.p_fa), su: ok(r.closed.p_s_up), closed: true };   // marché fermé : dernière analyse conservée
+    return {};
   }
   // Filtre par secteur / thème (OR) : mémorisé sur ce téléphone
   let secSel = [];
@@ -154,6 +156,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     }
     return out.sort((a, b) => b.p - a.p || b.buy - a.buy || (a.t < b.t ? -1 : 1));      // pourcentage de réussite décroissant
   }
+  let secOpen = false;
   function renderFilter() {
     const box = $("secFilter");
     if (view !== "scan" || !data || query.trim()) { box.hidden = true; return; }
@@ -161,17 +164,21 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     const secs = {}, ths = {};
     for (const { s } of all) { secs[s.sector || "Autres"] = (secs[s.sector || "Autres"] || 0) + 1; for (const th of s.themes || []) ths[th] = (ths[th] || 0) + 1; }
     secSel = secSel.filter((x) => secs[x] || ths[x]);
-    const chip = (name, n, kind) => `<button class="fchip${secSel.includes(name) ? " on" : ""}${kind === "th" ? " th" : ""}" data-sec="${esc(name)}">${esc(name)} <span class="muted">${n}</span></button>`;
-    const sortd = (o) => Object.entries(o).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     box.hidden = !all.length;
-    box.innerHTML = `<div class="frow"><button class="fchip${secSel.length ? "" : " on"}" data-sec="">Tous</button>${sortd(secs).map(([k, n]) => chip(k, n, "sec")).join("")}</div>`
-      + (Object.keys(ths).length ? `<div class="frow">${sortd(ths).map(([k, n]) => chip(k, n, "th")).join("")}</div>` : "");
+    const sortd = (o) => Object.entries(o).sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
+    const opt = ([k, n]) => `<label class="opt"><input type="checkbox" data-sec="${esc(k)}"${secSel.includes(k) ? " checked" : ""}><span>${esc(k)}</span><span class="muted">${n}</span></label>`;
+    const sum = secSel.length ? (secSel.length === 1 ? secSel[0] : secSel.length + " sélectionnés") : "Tous";
+    box.innerHTML = `<details class="secdrop"${secOpen ? " open" : ""}><summary>Secteur / thème : <b>${esc(sum)}</b></summary>
+      <div class="secpanel">${secSel.length ? '<button class="fchip" data-clear="1">Tout afficher</button>' : ""}
+      <div class="optgrp">Secteurs</div>${sortd(secs).map(opt).join("")}
+      ${Object.keys(ths).length ? '<div class="optgrp">Thèmes</div>' + sortd(ths).map(opt).join("") : ""}</div></details>`;
   }
 
   function renderViews() {
     viewTabs.innerHTML = `<button role="tab" data-view="scan" aria-selected="${view === "scan"}">Scanner</button>`
       + `<button role="tab" data-view="own" aria-selected="${view === "own"}">Mon PF<span class="count">${pos.length}</span></button>`;
-    for (const id of ["tfTabs", "stTabs", "searchWrap"]) $(id).hidden = view !== "scan";
+    for (const id of ["tfTabs", "stTabs"]) $(id).hidden = view !== "scan";
+    $("search").placeholder = view === "own" ? "Rechercher dans Mon PF…" : "Rechercher une action…";
   }
   function renderTabs() {
     const tl = TFS.filter(([k]) => visibleTf().includes(k));
@@ -190,6 +197,14 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       return p == null ? "" : `<span class="chip"><b>${l}</b>${st === "fa" ? dot("fa") : sq("up")}<span>${pct(p)}</span></span>`;
     }).join("");
   }
+  // Marché fermé : heure de clôture de la bougie + résultat réel
+  function closedLine(r) {
+    if (r.forming || !r.closed) return "";
+    const c = r.closed, d = c.end ? new Date(c.end) : null;
+    const when = d ? d.toLocaleString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
+    const hit = st === "fa" ? c.hit_fa : c.hit_s;
+    return `<div class="closedline"><span class="closedtag">Marché fermé</span><span class="muted">bougie clôturée ${esc(when)}</span><b class="${hit ? "up" : "muted"}">${hit ? (st === "fa" ? "✓ Fa validée" : "✓ S validée") : "non validée"}</b></div>`;
+  }
   function card(row) {
     const { t, s, r, p } = row;
     const over = st === "fa" && r.over && r.over.fa;
@@ -201,9 +216,10 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       <div class="pline"><span class="pbig">${st === "fa" ? dot("fa") : sq("up")}<b>${pct(p)}</b></span>
         <span class="pbar"><i class="${p >= (data.meta.prob_high ?? 0.6) ? "fa" : "mid"}" style="width:${Math.max(p * 100, 2)}%"></i></span>
         ${over ? '<span class="over">déjà au-dessus</span>' : ""}</div>
+      ${closedLine(r)}
       ${others ? `<div class="chips">${others}</div>` : ""}</button>`;
   }
-  const LEGEND = `<div class="legend">${dot("fa")} Fa en cours ${sq("up")} S haussière en cours<span class="muted" style="width:100%">Classées par pourcentage décroissant : chance que la bougie en formation valide la configuration. Filtrez par secteur ou thème ci-dessus.</span></div>`;
+  const LEGEND = `<div class="legend">${dot("fa")} Fa en cours ${sq("up")} S haussière en cours<span class="muted" style="width:100%">Classées par pourcentage décroissant : chance que la bougie en formation valide la configuration. Marché fermé : la dernière analyse reste affichée avec le résultat de la clôture. Menu « Secteur / thème » pour filtrer.</span></div>`;
 
   function renderList() {
     if (!data || !Object.keys(data.stocks).length) {
@@ -258,7 +274,10 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       list.innerHTML = `<div class="empty">Aucune action dans Mon PF.<br>Dans le Scanner, touchez une action puis choisissez S, Fa ou Autre.</div>`;
       return;
     }
-    const items = pos.map((p) => {
+    const q = query.trim().toLowerCase();
+    const shown = q ? pos.filter((p) => p.t.toLowerCase().includes(q) || ((data.stocks[p.t] || {}).name || "").toLowerCase().includes(q)) : pos;
+    if (!shown.length) { list.innerHTML = `<div class="empty">Aucune action de Mon PF ne correspond à « ${esc(query.trim())} ».</div>`; return; }
+    const items = shown.map((p) => {
       const s = data.stocks[p.t];
       const pl = s ? plan(p, s) : null;
       const dist = pl && pl.sl ? (s.price - pl.sl.v) / s.price : Infinity;          // écart au SL : les plus proches d'abord
@@ -296,7 +315,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     const m = data.meta;
     $("foot").innerHTML = `${m.analysed} actions analysées sur ${m.universe} (liquidité minimale requise). Cours différés d'environ ${m.delay_min} min.<br>`
       + `Fa en cours : la bougie Heikin Ashi en formation peut encore clôturer avec le haut du corps au-dessus de la Tenkan et d'une MM7 ascendante ; ${pct(m.prob_min ?? 0.3)} minimum, hors actions déjà en Fa. `
-      + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières dont au moins 2 sans mèche haute. `
+      + `${sq("up")} S haussière en cours : elle peut clôturer sans corps après au moins 3 bougies baissières (aucune verte), les 2 juste avant franches (vrai corps, peu de mèche haute), dont au moins 2 sans mèche haute dans la série. `
       + `Le pourcentage est une estimation statistique, pas une prévision. Les stops et objectifs sont des repères calculés d'après vos règles, pas des ordres. Information indicative, pas un conseil en investissement.`;
   }
 
@@ -582,11 +601,14 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     const b = e.target.closest("button[data-st]"); if (!b) return;
     st = b.dataset.st; store("st", st); render();
   });
+  $("secFilter").addEventListener("change", (e) => {
+    const k = e.target.dataset && e.target.dataset.sec; if (k == null) return;
+    secSel = e.target.checked ? [...secSel, k] : secSel.filter((x) => x !== k);
+    store("secsel", JSON.stringify(secSel)); secOpen = true; render();
+  });
   $("secFilter").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-sec]"); if (!b) return;
-    const k = b.dataset.sec;
-    if (!k) secSel = []; else secSel = secSel.includes(k) ? secSel.filter((x) => x !== k) : [...secSel, k];
-    store("secsel", JSON.stringify(secSel)); render();
+    if (e.target.closest("[data-clear]")) { secSel = []; store("secsel", "[]"); secOpen = true; render(); return; }
+    if (e.target.closest("summary")) secOpen = !secOpen;
   });
   list.addEventListener("click", (e) => {
     const add = e.target.closest("[data-add]");

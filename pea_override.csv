@@ -1,0 +1,5 @@
+# Corrections manuelles de l'éligibilité PEA. Colonnes : ticker, oui|non.
+# Par défaut, une action est jugée éligible si le siège de la société (pays relevé par Yahoo) est dans l'UE / l'EEE.
+# Exemple : XXX.PA,non
+ticker,eligible
+AIR.PA,oui

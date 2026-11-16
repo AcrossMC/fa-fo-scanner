@@ -293,11 +293,14 @@ def test_s_config():
         for direction, sd in (("down", "up"), ("up", "down")):
             act = lambda ci: sc.analyze_tf(wick_df(direction, ci), "1d", after, rng)["s"]
             assert act(set(range(30)))["active"] and act(set(range(30)))["dir"] == sd
-            assert act({0, 1})["active"] and act({3, 8})["active"] and act({28, 29})["active"]   # 2 sans mèche, n'importe où dans la série
-            assert not act({5})["active"] and not act(set())["active"]                              # moins de 2 : pas de S
+            assert act({28, 29})["active"] and act({0, 28, 29})["active"]                           # les 2 bougies juste avant : franches, sans mèche
+            assert not act({0, 1})["active"] and not act({3, 8})["active"]                          # 2 sans mèche mais pas juste avant : pas de S
+            assert not act({29})["active"] and not act({5})["active"] and not act(set())["active"]  # l'une des 2 juste avant a une mèche / moins de 2
         old_w = sc.S_WICK_MIN
         sc.S_WICK_MIN = 0
+        sc.S_FIRM_WICK = 9.0
         assert sc.analyze_tf(wick_df("down", set()), "1d", after, rng)["s"]["active"]            # sans contrainte
+        sc.S_FIRM_WICK = 0.15
         sc.S_WICK_MIN = old_w
     finally:
         sc.heikin_ashi = real_ha
@@ -477,7 +480,7 @@ def test_levels_and_sectors():
     data = {"stocks": {"AIR.PA": {}, "MC.PA": {}, "ZZ.PA": {}}}
     themes = {"MC.PA": ("Luxe, Mode & Cosmétiques", ["Luxe"])}
     cache = sc.apply_sectors(data, {"OLD.PA": "Industrie"}, lambda t: {"AIR.PA": ("Industrials", "Aerospace & Defense")}[t], themes=themes)
-    assert data["stocks"]["AIR.PA"]["sector"] == "Aéronautique & Défense" and cache["AIR.PA"] == {"s": "Industrials", "i": "Aerospace & Defense"}
+    assert data["stocks"]["AIR.PA"]["sector"] == "Aéronautique & Défense" and cache["AIR.PA"] == {"s": "Industrials", "i": "Aerospace & Defense", "c": "?"}
     assert data["stocks"]["MC.PA"]["sector"] == "Luxe, Mode & Cosmétiques" and data["stocks"]["MC.PA"]["themes"] == ["Luxe"]
     assert data["stocks"]["ZZ.PA"]["sector"] == "Autres" and "ZZ.PA" not in cache                 # inconnu : réessayé au prochain passage
     assert sc.sector_group("Solar", "Technology") == "Énergies renouvelables & Hydrogène" and sc.sector_group("", "Energy") == "Pétrole, Gaz & Services"
@@ -487,6 +490,11 @@ def test_levels_and_sectors():
     uni = sc.load_universe()
     assert all(t in th for t in uni), [t for t in uni if t not in th][:5]                          # themes.csv couvre universe.csv
     assert th["AIR.PA"] == ("Aéronautique & Défense", ["Défense", "Spatial"]) and len({g for g, _ in th.values()}) <= 30
+    # PEA : pays du siège (Yahoo) ; inconnu conservé ; actions détenues jamais retirées ; pea_override.csv prioritaire
+    d2 = {"meta": {}, "stocks": {k: {} for k in ("A.PA", "B.PA", "C.PA", "D.PA", "E.PA")}}
+    c2 = {"A.PA": {"c": "France"}, "B.PA": {"c": "Bermuda"}, "C.PA": {"c": "?"}, "D.PA": {"c": "United Kingdom"}, "E.PA": {"c": "Netherlands"}}
+    rem = sc.apply_pea(d2, c2, holdings=frozenset({"D.PA"}), override={"E.PA": False})
+    assert sorted(rem) == ["B.PA", "E.PA"] and set(d2["stocks"]) == {"A.PA", "C.PA", "D.PA"} and d2["stocks"]["D.PA"]["pea"] is False and d2["meta"]["pea_excluded"] == 2
     print("OK levels_and_sectors")
 
 
@@ -561,7 +569,7 @@ def test_icb():
     data = {"stocks": {"X.PA": {}, "Y.PA": {}}}
     called = []
     sc.apply_sectors(data, {}, lambda t: called.append(t) or ("Technology", "Software - Application"), themes={}, icb={"X.PA": {"sub": "Aerospace"}})
-    assert data["stocks"]["X.PA"]["sector"] == "Aéronautique & Défense" and called == ["Y.PA"], (data, called)
+    assert data["stocks"]["X.PA"]["sector"] == "Aéronautique & Défense" and sorted(called) == ["X.PA", "Y.PA"], (data, called)
 
 
 def test_lines_3mo():
@@ -588,6 +596,20 @@ def test_s_cancelled_after_s():
     assert r["hist"].count("n") <= 2 and (r["hist"][-1] != "n" or not r["p_s_up"]), r["hist"]
     if r["hist"].endswith("n"):
         assert not r["p_s_up"], (r["hist"], r["p_s_up"])
+
+
+def test_carry_closed():
+    bar = "2026-11-16T00:00:00+01:00"
+    prev = {"stocks": {"A.PA": {"tf": {"1d": {"forming": True, "bar_forming": bar, "p_fa": 0.7, "p_s_up": 0.4}}}}}
+    mk = lambda: {"stocks": {"A.PA": {"tf": {"1d": {"forming": False, "state": "fa", "since": bar, "s": {"bar": bar, "active": False, "dir": None}}}}}}
+    d = mk(); sc.carry_closed(d, prev)
+    c = d["stocks"]["A.PA"]["tf"]["1d"]["closed"]
+    assert c["p_fa"] == 0.7 and c["hit_fa"] is True and c["hit_s"] is False and c["end"], c
+    d2 = mk(); d2["stocks"]["A.PA"]["tf"]["1d"]["closed"] = None
+    sc.carry_closed(d2, d); assert d2["stocks"]["A.PA"]["tf"]["1d"]["closed"]["p_fa"] == 0.7      # conservé aux passages suivants
+    d3 = mk(); d3["stocks"]["A.PA"]["tf"]["1d"]["s"]["bar"] = "autre"; sc.carry_closed(d3, prev)
+    assert "closed" not in d3["stocks"]["A.PA"]["tf"]["1d"]                                       # autre bougie : rien
+    print("OK carry_closed")
 
 
 def test_backtest():
@@ -676,6 +698,7 @@ if __name__ == "__main__":
     test_modes()
     test_levels_and_sectors()
     test_icb()
+    test_carry_closed()
     test_s_cancelled_after_s()
     test_lines_3mo()
     test_holdings_always_scanned()

@@ -85,6 +85,8 @@ S_MIN_RUN = 3              # S : nombre minimal de bougies HA de même sens cons
 S_WICK_MAX = 0.10          # S : « sans mèche » = mèche <= 10 % de la hauteur de la bougie (haute pour S haussière, basse pour S baissière)
 AUTO_UNIVERSE = True       # True : à chaque passage, ajoute à universe.csv toutes les actions de Paris listées par Yahoo (puis filtre sur la liquidité)
 S_WICK_MIN = 2             # S : dans toute la série de bougies de même sens, au moins S_WICK_MIN sans mèche (haute pour S haussière, basse pour S baissière) ; les autres peuvent en avoir
+S_FIRM_BODY = 0.25         # S : les 2 bougies juste avant doivent avoir un vrai corps (>= 25 % de la hauteur)
+S_FIRM_WICK = 0.15         # S : ... et au plus 15 % de mèche du côté de la tendance (haute pour S haussière)
 S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture|) <= 10 % de la hauteur de la bougie HA
 MAX_PUSH_PER_RUN = 30     # au-delà : une seule notification récapitulative (ntfy.sh limite ~250 messages/jour)
 MA_TP = (20, 50, 100, 200)  # MM des objectifs (TP), calculées sur les clôtures classiques
@@ -402,9 +404,8 @@ def analyze_tf(df, tf, now_eff, rng):
     #   S+ (haussière) : après des bougies baissières | S- (baissière) : après des bougies vertes
     rng_h = hah - hal
     nobody = (rng_h > 0) & (np.abs(hac - hao) <= S_BODY_MAX * rng_h)
-    # une bougie sans corps n'est ni rouge ni verte : elle interrompt la série (un S déjà apparu annule le suivant)
-    bear = (hac < hao) & ~nobody
-    bull = (hac > hao) & ~nobody
+    bear = hac < hao
+    bull = hac > hao
     # bougies « propres » : baissière sans (ou peu de) mèche au-dessus du corps / haussière sans mèche sous le corps
     bear_clean = bear & (rng_h > 0) & ((hah - np.maximum(hao, hac)) <= S_WICK_MAX * rng_h)
     bull_clean = bull & (rng_h > 0) & ((np.minimum(hao, hac) - hal) <= S_WICK_MAX * rng_h)
@@ -419,16 +420,29 @@ def analyze_tf(df, tf, now_eff, rng):
             n += 1
         return n
 
+    # bougies « franches » : vrai corps (> S_FIRM_BODY de la hauteur) et peu de mèche du côté de la tendance (<= S_FIRM_WICK)
+    real_body = (rng_h > 0) & (np.abs(hac - hao) >= S_FIRM_BODY * rng_h)
+    bear_firm = bear & real_body & (rng_h > 0) & ((hah - np.maximum(hao, hac)) <= S_FIRM_WICK * rng_h)
+    bull_firm = bull & real_body & (rng_h > 0) & ((np.minimum(hao, hac) - hal) <= S_FIRM_WICK * rng_h)
+
+    def pre_s(k):
+        """Série qui précède la bougie k : 'up' (S haussière possible) / 'down' / None. Il faut : au moins S_MIN_RUN bougies de même sens
+        d'affilée (donc aucune de l'autre couleur parmi les 3 précédentes, quel que soit son corps), les deux juste avant franches,
+        et au moins S_WICK_MIN sans mèche dans toute la série. Une bougie sans corps juste avant (S déjà apparu) annule donc le suivant."""
+        if k < S_MIN_RUN:
+            return None, 0
+        nb, nu = run(k, bear), run(k, bull)
+        if nb >= S_MIN_RUN and bear_firm[k - 1] and bear_firm[k - 2] and clean_count(k, nb, bear_clean) >= S_WICK_MIN:
+            return "up", nb
+        if nu >= S_MIN_RUN and bull_firm[k - 1] and bull_firm[k - 2] and clean_count(k, nu, bull_clean) >= S_WICK_MIN:
+            return "down", nu
+        return None, 0
+
     def s_at(k):
         """(sens, n) si la bougie k est une configuration S, sinon (None, 0)."""
         if k < S_MIN_RUN or not nobody[k]:
             return None, 0
-        nb, nu = run(k, bear), run(k, bull)
-        if nb >= S_MIN_RUN and clean_count(k, nb, bear_clean) >= S_WICK_MIN:
-            return "up", nb
-        if nu >= S_MIN_RUN and clean_count(k, nu, bull_clean) >= S_WICK_MIN:
-            return "down", nu
-        return None, 0
+        return pre_s(k)
 
     events = []
     for k in (nc - 2, nc - 1):
@@ -470,8 +484,8 @@ def analyze_tf(df, tf, now_eff, rng):
         if np.isfinite(sigma) and sigma > 0:
             rem = remaining_fraction(idx[-1], tf, now_eff)
             p_fa, p_fo, p_su, p_sd = simulate(o, h, l, c, hao, hah, hal, hac, sh, sl, sc, rem, sigma, rng,
-                                              run(nc, bear) if clean_count(nc, run(nc, bear), bear_clean) >= S_WICK_MIN else 0,
-                                              run(nc, bull) if clean_count(nc, run(nc, bull), bull_clean) >= S_WICK_MIN else 0)
+                                              pre_s(nc)[1] if pre_s(nc)[0] == "up" else 0,
+                                              pre_s(nc)[1] if pre_s(nc)[0] == "down" else 0)
             res["sd_rem"] = round(sigma * float(np.sqrt(max(rem, 1e-9))), 5)      # écart-type du rendement jusqu'à la fin de la bougie
             p_fa, p_fo = calibrate("fa", tf, p_fa), calibrate("fo", tf, p_fo)
             p_su, p_sd = calibrate("s", tf, p_su), calibrate("s", tf, p_sd)
@@ -1033,7 +1047,12 @@ def apply_sectors(data, cache, lookup, limit=60, themes=None, icb=None):
     `limit` nouvelles recherches par passage via `lookup(ticker)` -> (secteur, industrie))."""
     themes = load_themes() if themes is None else themes
     icb = load_icb() if icb is None else icb
-    todo = [t for t in data["stocks"] if t not in themes and icb_group(icb.get(t)) == "Autres" and not isinstance(cache.get(t), dict)]
+    def needs(t):
+        c = cache.get(t)
+        if not isinstance(c, dict) or "c" not in c:                    # pays (éligibilité PEA) jamais relevé
+            return True
+        return t not in themes and icb_group(icb.get(t)) == "Autres" and not (c.get("s") or c.get("i"))
+    todo = sorted((t for t in data["stocks"] if needs(t)), key=lambda t: isinstance(cache.get(t), dict))
     fails = 0
     for t in todo[:limit]:
         try:
@@ -1044,8 +1063,9 @@ def apply_sectors(data, cache, lookup, limit=60, themes=None, icb=None):
             if fails >= 5:                                   # Yahoo limite les requêtes : on réessaiera au prochain passage
                 break
         if res is not None:
-            sec, ind = res if isinstance(res, tuple) else (res, "")
-            cache[t] = {"s": sec or "", "i": ind or ""}
+            sec, ind, *rest = res if isinstance(res, tuple) else (res, "")
+            old = cache.get(t) if isinstance(cache.get(t), dict) else {}
+            cache[t] = {"s": sec or old.get("s", ""), "i": ind or old.get("i", ""), "c": (rest[0] if rest else old.get("c", "")) or "?"}
     for t, stock in data["stocks"].items():
         if t in themes:
             stock["sector"], stock["themes"] = themes[t][0], list(themes[t][1])
@@ -1063,10 +1083,82 @@ def apply_sectors(data, cache, lookup, limit=60, themes=None, icb=None):
     return cache
 
 
+# PEA : actions de sociétés ayant leur siège dans l'Union européenne ou l'EEE (pays relevé par Yahoo ; « ? » = inconnu -> conservée).
+# pea_override.csv (ticker,oui|non) corrige les erreurs éventuelles.
+PEA_ONLY_FRANCE = True      # True : seulement les sociétés dont le siège est en France (frais Boursorama) ; False : toute l'UE / l'EEE
+PEA_COUNTRIES_EU = {"France", "Germany", "Netherlands", "Belgium", "Luxembourg", "Italy", "Spain", "Portugal", "Ireland", "Finland", "Austria",
+                    "Greece", "Denmark", "Sweden", "Norway", "Iceland", "Liechtenstein", "Malta", "Cyprus", "Poland", "Czech Republic", "Czechia",
+                    "Hungary", "Romania", "Bulgaria", "Croatia", "Slovenia", "Slovakia", "Estonia", "Latvia", "Lithuania"}
+PEA_COUNTRIES = {"France"} if PEA_ONLY_FRANCE else PEA_COUNTRIES_EU
+PEA_OVERRIDE_FILE = HERE / "pea_override.csv"
+
+
+def load_pea_override(path=PEA_OVERRIDE_FILE):
+    out = {}
+    try:
+        for row in csv.reader(x for x in Path(path).read_text(encoding="utf-8").splitlines() if x.strip() and not x.startswith("#")):
+            if len(row) >= 2 and row[0].strip().lower() != "ticker":
+                t = row[0].strip().upper()
+                out[t if "." in t else t + ".PA"] = row[1].strip().lower() in ("oui", "o", "yes", "1", "true")
+    except Exception:
+        pass
+    return out
+
+
+def pea_eligible(t, cache, override=None):
+    ov = load_pea_override() if override is None else override
+    if t in ov:
+        return ov[t]
+    c = (cache.get(t) or {}) if isinstance(cache.get(t), dict) else {}
+    country = c.get("c") or "?"
+    return country == "?" or country in PEA_COUNTRIES
+
+
+def apply_pea(data, cache, holdings=frozenset(), override=None):
+    """Retire de la liste les actions non éligibles au PEA (sauf celles détenues). Renvoie la liste des tickers retirés."""
+    ov = load_pea_override() if override is None else override
+    removed = []
+    for t in list(data["stocks"]):
+        if pea_eligible(t, cache, ov) or t in holdings:
+            data["stocks"][t]["pea"] = pea_eligible(t, cache, ov)
+        else:
+            removed.append(t)
+            del data["stocks"][t]
+    data["meta"]["pea_excluded"] = len(removed)
+    return removed
+
+
 def yahoo_sector(t):
     import yfinance as yf
     info = yf.Ticker(t).info or {}
-    return info.get("sector") or "", info.get("industry") or ""
+    return info.get("sector") or "", info.get("industry") or "", info.get("country") or ""
+
+
+def carry_closed(data, prev):
+    """Marché fermé : une fois la bougie clôturée, il n'y a plus de bougie « en formation ». On garde alors visibles, avec la mention
+    « marché fermé », les configurations qui étaient en cours à la dernière analyse (pourcentage final + résultat réel de la clôture).
+    La mention disparaît dès qu'une nouvelle bougie se forme."""
+    if not prev:
+        return
+    for t, stock in data["stocks"].items():
+        for tf, r in stock["tf"].items():
+            if r.get("forming"):
+                continue
+            pr = ((prev.get("stocks") or {}).get(t) or {}).get("tf", {}).get(tf) or {}
+            bar = r["s"]["bar"]
+            if pr.get("forming") and pr.get("bar_forming") == bar:
+                src = {"p_fa": pr.get("p_fa"), "p_s_up": pr.get("p_s_up")}
+            elif (pr.get("closed") or {}).get("bar") == bar:
+                src = {"p_fa": pr["closed"].get("p_fa"), "p_s_up": pr["closed"].get("p_s_up")}
+            else:
+                continue
+            try:
+                end = bar_end(pd.Timestamp(bar), tf).isoformat()
+            except Exception:
+                end = None
+            r["closed"] = {"bar": bar, "end": end, **src,
+                           "hit_fa": bool(r["state"] == "fa" and r["since"] == bar),
+                           "hit_s": bool(r["s"]["active"] and r["s"]["dir"] == "up")}
 
 
 def merge_partial(prev, data):
@@ -1110,19 +1202,19 @@ def main():
     now = pd.Timestamp.now(tz=PARIS)
     mode = choose_mode(now, holdings)
     prev = None
-    if mode == "held":
-        try:
-            prev = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-            if not prev.get("stocks"):
-                prev = None
-        except Exception:
+    try:
+        prev = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        if not prev.get("stocks"):
             prev = None
-        if prev is None:
-            mode = "full"
+    except Exception:
+        prev = None
+    if mode == "held" and prev is None:
+        mode = "full"
     if mode == "held":
         print(f"Passage rapide : {len(holdings)} position(s) seulement.")
         data, events = scan({}, download, now, args.min_turnover, holdings, positions)
         if data["stocks"]:
+            carry_closed(data, prev)
             data = merge_partial(prev, data)
         else:
             sys.exit("Aucune donnée pour les positions : data.json non modifié.")
@@ -1134,6 +1226,7 @@ def main():
             universe.update(added)
             print(f"Liste Yahoo des actions de Paris : {len(listed)} valeurs, {len(added)} ajoutées à universe.csv ({len(universe)} au total).")
         data, events = scan(universe, download, now, args.min_turnover, holdings, positions)
+        carry_closed(data, prev)
 
     m = data["meta"]
     print(f"{m.get('analysed', len(data['stocks']))} actions analysées sur {m.get('universe', '?')} "
@@ -1149,6 +1242,9 @@ def main():
         cache = {}
     before = dict(cache)
     cache = apply_sectors(data, cache, yahoo_sector, limit=60 if mode == "full" else 5)
+    removed = apply_pea(data, cache, holdings)
+    if removed:
+        print(f"{len(removed)} action(s) non éligibles au PEA retirées de la liste : " + ", ".join(sorted(removed)[:40]) + (" …" if len(removed) > 40 else ""))
     if cache != before and not args.no_push:
         SECTORS_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=0, sort_keys=True), encoding="utf-8")
 

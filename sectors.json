@@ -13,78 +13,260 @@
 "AB.PA": "Santé",
 "ABCA.PA": "Finance",
 "ABNX.PA": "Santé",
-"ABVX.PA": "Santé",
+"ABVX.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "AC.PA": "Conso cyclique",
 "ACA.PA": "Finance",
-"ACALH.PA": "Autres",
-"ACALK.PA": "Autres",
-"ACALL.PA": "Autres",
-"ACALM.PA": "Autres",
-"ACALS.PA": "Autres",
-"ACALT.PA": "Autres",
-"ACALU.PA": "Autres",
-"ACALV.PA": "Autres",
-"ACALW.PA": "Autres",
-"ACALX.PA": "Autres",
-"ACALY.PA": "Autres",
-"ACALZ.PA": "Autres",
-"ACAMA.PA": "Autres",
-"ACAMB.PA": "Autres",
-"ACAMD.PA": "Autres",
-"ACAMG.PA": "Autres",
-"ACAMH.PA": "Autres",
-"ACAMJ.PA": "Autres",
-"ACAMK.PA": "Autres",
-"ACAMV.PA": "Autres",
-"ACAMW.PA": "Autres",
-"ACAMY.PA": "Autres",
-"ACAMZ.PA": "Autres",
-"ACANF.PA": "Autres",
-"ACAOB.PA": "Autres",
-"ACAOF.PA": "Autres",
-"ACAOH.PA": "Autres",
-"ACAOT.PA": "Autres",
-"ACAPV.PA": "Autres",
-"ACAQH.PA": "Autres",
-"ACAQI.PA": "Autres",
-"ACAQQ.PA": "Autres",
-"ACCAG.PA": "Autres",
-"ADOC.PA": "Santé",
+"ACALH.PA": {
+"i": "",
+"s": ""
+},
+"ACALK.PA": {
+"i": "",
+"s": ""
+},
+"ACALL.PA": {
+"i": "",
+"s": ""
+},
+"ACALM.PA": {
+"i": "",
+"s": ""
+},
+"ACALS.PA": {
+"i": "",
+"s": ""
+},
+"ACALT.PA": {
+"i": "",
+"s": ""
+},
+"ACALU.PA": {
+"i": "",
+"s": ""
+},
+"ACALV.PA": {
+"i": "",
+"s": ""
+},
+"ACALW.PA": {
+"i": "",
+"s": ""
+},
+"ACALX.PA": {
+"i": "",
+"s": ""
+},
+"ACALY.PA": {
+"i": "",
+"s": ""
+},
+"ACALZ.PA": {
+"i": "",
+"s": ""
+},
+"ACAMA.PA": {
+"i": "",
+"s": ""
+},
+"ACAMB.PA": {
+"i": "",
+"s": ""
+},
+"ACAMD.PA": {
+"i": "",
+"s": ""
+},
+"ACAMG.PA": {
+"i": "",
+"s": ""
+},
+"ACAMH.PA": {
+"i": "",
+"s": ""
+},
+"ACAMI.PA": {
+"i": "",
+"s": ""
+},
+"ACAMJ.PA": {
+"i": "",
+"s": ""
+},
+"ACAMK.PA": {
+"i": "",
+"s": ""
+},
+"ACAMV.PA": {
+"i": "",
+"s": ""
+},
+"ACAMW.PA": {
+"i": "",
+"s": ""
+},
+"ACAMY.PA": {
+"i": "",
+"s": ""
+},
+"ACAMZ.PA": {
+"i": "",
+"s": ""
+},
+"ACANF.PA": {
+"i": "",
+"s": ""
+},
+"ACAOB.PA": {
+"i": "",
+"s": ""
+},
+"ACAOF.PA": {
+"i": "",
+"s": ""
+},
+"ACAOH.PA": {
+"i": "",
+"s": ""
+},
+"ACAOT.PA": {
+"i": "",
+"s": ""
+},
+"ACAPV.PA": {
+"i": "",
+"s": ""
+},
+"ACAQH.PA": {
+"i": "",
+"s": ""
+},
+"ACAQI.PA": {
+"i": "",
+"s": ""
+},
+"ACAQQ.PA": {
+"i": "",
+"s": ""
+},
+"ACCAG.PA": {
+"i": "",
+"s": ""
+},
+"ADOC.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "ADP.PA": "Industrie",
 "AF.PA": "Industrie",
 "AI.PA": "Matériaux",
 "AIR.PA": "Industrie",
 "AKE.PA": "Matériaux",
 "AL2SI.PA": "Technologie",
-"ALAGO.PA": "Services publics",
+"ALAGO.PA": {
+"i": "Utilities - Renewable",
+"s": "Utilities"
+},
 "ALBFR.PA": "Technologie",
-"ALBPS.PA": "Santé",
-"ALCJ.PA": "Santé",
+"ALBPS.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
+"ALCJ.PA": {
+"i": "Medical Instruments & Supplies",
+"s": "Healthcare"
+},
 "ALCLS.PA": "Santé",
-"ALCPB.PA": "Technologie",
-"ALDBT.PA": "Industrie",
-"ALDLT.PA": "Conso cyclique",
-"ALDRV.PA": "Technologie",
-"ALESE.PA": "Services publics",
-"ALGIL.PA": "Conso cyclique",
-"ALHAF.PA": "Services publics",
+"ALCPB.PA": {
+"i": "Software - Application",
+"s": "Technology"
+},
+"ALDBT.PA": {
+"i": "Specialty Industrial Machinery",
+"s": "Industrials"
+},
+"ALDLT.PA": {
+"i": "Footwear & Accessories",
+"s": "Consumer Cyclical"
+},
+"ALDRV.PA": {
+"i": "Computer Hardware",
+"s": "Technology"
+},
+"ALESE.PA": {
+"i": "Utilities - Renewable",
+"s": "Utilities"
+},
+"ALGIL.PA": {
+"i": "Packaging & Containers",
+"s": "Consumer Cyclical"
+},
+"ALHAF.PA": {
+"i": "Utilities - Renewable",
+"s": "Utilities"
+},
 "ALHEX.PA": "Conso cyclique",
-"ALHG.PA": "Industrie",
-"ALKAL.PA": "Technologie",
+"ALHG.PA": {
+"i": "Specialty Business Services",
+"s": "Industrials"
+},
+"ALKAL.PA": {
+"i": "Semiconductors",
+"s": "Technology"
+},
 "ALLIX.PA": "Technologie",
-"ALMDT.PA": "Santé",
-"ALMIB.PA": "Matériaux",
-"ALNOV.PA": "Santé",
+"ALMDT.PA": {
+"i": "Medical Devices",
+"s": "Healthcare"
+},
+"ALMIB.PA": {
+"i": "Agricultural Inputs",
+"s": "Basic Materials"
+},
+"ALNOV.PA": {
+"i": "Diagnostics & Research",
+"s": "Healthcare"
+},
 "ALO.PA": "Industrie",
-"ALPM.PA": "Industrie",
-"ALPUL.PA": "Communication",
-"ALRIB.PA": "Technologie",
-"ALROC.PA": "Technologie",
-"ALSEM.PA": "Technologie",
-"ALSEN.PA": "Santé",
-"ALSTI.PA": "Industrie",
+"ALPER.PA": {
+"i": "Electrical Equipment & Parts",
+"s": "Industrials"
+},
+"ALPM.PA": {
+"i": "Specialty Industrial Machinery",
+"s": "Industrials"
+},
+"ALPUL.PA": {
+"i": "Electronic Gaming & Multimedia",
+"s": "Communication Services"
+},
+"ALRIB.PA": {
+"i": "Semiconductor Equipment & Materials",
+"s": "Technology"
+},
+"ALROC.PA": {
+"i": "Electronic Components",
+"s": "Technology"
+},
+"ALSEM.PA": {
+"i": "Semiconductor Equipment & Materials",
+"s": "Technology"
+},
+"ALSEN.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
+"ALSTI.PA": {
+"i": "Specialty Industrial Machinery",
+"s": "Industrials"
+},
 "ALTA.PA": "Immobilier",
-"ALTAO.PA": "Santé",
+"ALTAO.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "ALTD.PA": {
 "i": "Aerospace & Defense",
 "s": "Industrials"

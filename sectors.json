@@ -74,7 +74,11 @@
 "s": "Healthcare"
 },
 "AC.PA": "Conso cyclique",
-"ACA.PA": "Finance",
+"ACA.PA": {
+"c": "France",
+"i": "Banks - Diversified",
+"s": "Financial Services"
+},
 "ACALH.PA": {
 "i": "",
 "s": ""
@@ -215,11 +219,31 @@
 "i": "Biotechnology",
 "s": "Healthcare"
 },
-"ADP.PA": "Industrie",
-"AF.PA": "Industrie",
-"AI.PA": "Matériaux",
-"AIR.PA": "Industrie",
-"AKE.PA": "Matériaux",
+"ADP.PA": {
+"c": "France",
+"i": "Airports & Air Services",
+"s": "Industrials"
+},
+"AF.PA": {
+"c": "France",
+"i": "Airlines",
+"s": "Industrials"
+},
+"AI.PA": {
+"c": "France",
+"i": "Specialty Chemicals",
+"s": "Basic Materials"
+},
+"AIR.PA": {
+"c": "Netherlands",
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
+"AKE.PA": {
+"c": "France",
+"i": "Specialty Chemicals",
+"s": "Basic Materials"
+},
 "AL2SI.PA": "Technologie",
 "ALAGO.PA": {
 "i": "Utilities - Renewable",
@@ -285,7 +309,11 @@
 "i": "Diagnostics & Research",
 "s": "Healthcare"
 },
-"ALO.PA": "Industrie",
+"ALO.PA": {
+"c": "France",
+"i": "Railroads",
+"s": "Industrials"
+},
 "ALPER.PA": {
 "i": "Electrical Equipment & Parts",
 "s": "Industrials"
@@ -347,8 +375,16 @@
 "i": "Biotechnology",
 "s": "Healthcare"
 },
-"AM.PA": "Industrie",
-"AMUN.PA": "Finance",
+"AM.PA": {
+"c": "France",
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
+"AMUN.PA": {
+"c": "France",
+"i": "Asset Management",
+"s": "Financial Services"
+},
 "ANTIN.PA": "Finance",
 "ARAMI.PA": "Conso cyclique",
 "ARG.PA": "Immobilier",
@@ -357,9 +393,17 @@
 "i": "",
 "s": ""
 },
-"ATE.PA": "Technologie",
+"ATE.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "ATEME.PA": "Technologie",
-"ATO.PA": "Technologie",
+"ATO.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "AUB.PA": "Technologie",
 "AUB5L.PA": {
 "i": "",
@@ -393,14 +437,34 @@
 "i": "",
 "s": ""
 },
-"AYV.PA": "Industrie",
+"AYV.PA": {
+"c": "France",
+"i": "Rental & Leasing Services",
+"s": "Industrials"
+},
 "BB.PA": "Conso défensive",
 "BEN.PA": "Conso cyclique",
-"BIM.PA": "Santé",
+"BIM.PA": {
+"c": "France",
+"i": "Diagnostics & Research",
+"s": "Healthcare"
+},
 "BLC.PA": "Santé",
-"BN.PA": "Conso défensive",
-"BNP.PA": "Finance",
-"BOL.PA": "Communication",
+"BN.PA": {
+"c": "France",
+"i": "Packaged Foods",
+"s": "Consumer Defensive"
+},
+"BNP.PA": {
+"c": "France",
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
+"BOL.PA": {
+"c": "France",
+"i": "Entertainment",
+"s": "Communication Services"
+},
 "BON.PA": "Conso défensive",
 "BPCEB.PA": {
 "i": "",
@@ -430,8 +494,16 @@
 "i": "",
 "s": ""
 },
-"BVI.PA": "Industrie",
-"CA.PA": "Conso défensive",
+"BVI.PA": {
+"c": "France",
+"i": "Consulting Services",
+"s": "Industrials"
+},
+"CA.PA": {
+"c": "France",
+"i": "Grocery Stores",
+"s": "Consumer Defensive"
+},
 "CAAF.PA": {
 "i": "",
 "s": ""
@@ -448,7 +520,11 @@
 "i": "",
 "s": ""
 },
-"CAP.PA": "Technologie",
+"CAP.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "CARM.PA": "Immobilier",
 "CAT31.PA": {
 "i": "Banks - Regional",
@@ -477,7 +553,11 @@
 "i": "Household & Personal Products",
 "s": "Consumer Defensive"
 },
-"COV.PA": "Immobilier",
+"COV.PA": {
+"c": "France",
+"i": "REIT - Diversified",
+"s": "Real Estate"
+},
 "CRBP2.PA": {
 "i": "Banks - Regional",
 "s": "Financial Services"
@@ -486,23 +566,51 @@
 "i": "",
 "s": ""
 },
-"CS.PA": "Finance",
+"CS.PA": {
+"c": "France",
+"i": "Insurance - Diversified",
+"s": "Financial Services"
+},
 "CVX.PA": {
 "i": "Medical Devices",
 "s": "Healthcare"
 },
-"DBG.PA": "Industrie",
+"DBG.PA": {
+"c": "France",
+"i": "Waste Management",
+"s": "Industrials"
+},
 "DBV.PA": "Santé",
-"DEC.PA": "Communication",
-"DG.PA": "Industrie",
-"DIM.PA": "Santé",
-"DSY.PA": "Technologie",
+"DEC.PA": {
+"c": "France",
+"i": "Advertising Agencies",
+"s": "Communication Services"
+},
+"DG.PA": {
+"c": "France",
+"i": "Engineering & Construction",
+"s": "Industrials"
+},
+"DIM.PA": {
+"c": "France",
+"i": "Medical Instruments & Supplies",
+"s": "Healthcare"
+},
+"DSY.PA": {
+"c": "France",
+"i": "Software - Application",
+"s": "Technology"
+},
 "EAPI.PA": "Santé",
 "EC.PA": {
 "i": "Oil & Gas E&P",
 "s": "Energy"
 },
-"EDEN.PA": "Finance",
+"EDEN.PA": {
+"c": "France",
+"i": "Credit Services",
+"s": "Financial Services"
+},
 "EDFBS.PA": {
 "i": "",
 "s": ""
@@ -512,23 +620,55 @@
 "s": ""
 },
 "EKI.PA": "Technologie",
-"EL.PA": "Santé",
+"EL.PA": {
+"c": "France",
+"i": "Medical Instruments & Supplies",
+"s": "Healthcare"
+},
 "ELEC.PA": {
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
 "ELIOR.PA": "Conso cyclique",
-"ELIS.PA": "Industrie",
-"EMEIS.PA": "Santé",
-"EN.PA": "Industrie",
-"ENGI.PA": "Services publics",
-"ENX.PA": "Finance",
+"ELIS.PA": {
+"c": "France",
+"i": "Specialty Business Services",
+"s": "Industrials"
+},
+"EMEIS.PA": {
+"c": "France",
+"i": "Medical Care Facilities",
+"s": "Healthcare"
+},
+"EN.PA": {
+"c": "France",
+"i": "Engineering & Construction",
+"s": "Industrials"
+},
+"ENGI.PA": {
+"c": "France",
+"i": "Utilities - Diversified",
+"s": "Utilities"
+},
+"ENX.PA": {
+"c": "Netherlands",
+"i": "Financial Data & Stock Exchanges",
+"s": "Financial Services"
+},
 "EQS.PA": {
 "i": "Health Information Services",
 "s": "Healthcare"
 },
-"ERA.PA": "Matériaux",
-"ERF.PA": "Santé",
+"ERA.PA": {
+"c": "France",
+"i": "Other Industrial Metals & Mining",
+"s": "Basic Materials"
+},
+"ERF.PA": {
+"c": "Luxembourg",
+"i": "Diagnostics & Research",
+"s": "Healthcare"
+},
 "ETAAH.PA": {
 "i": "",
 "s": ""
@@ -662,8 +802,16 @@
 "i": "",
 "s": ""
 },
-"ETL.PA": "Communication",
-"EXA.PA": "Industrie",
+"ETL.PA": {
+"c": "France",
+"i": "Telecom Services",
+"s": "Communication Services"
+},
+"EXA.PA": {
+"c": "France",
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
 "EXENS.PA": "Industrie",
 "EXPL.PA": {
 "i": "Specialty Chemicals",
@@ -685,7 +833,11 @@
 "i": "Aerospace & Defense",
 "s": "Industrials"
 },
-"FGR.PA": "Industrie",
+"FGR.PA": {
+"c": "France",
+"i": "Engineering & Construction",
+"s": "Industrials"
+},
 "FII.PA": "Industrie",
 "FNAC.PA": "Conso cyclique",
 "FR.PA": "Conso cyclique",
@@ -782,7 +934,11 @@
 "GBS.PA": "Autres",
 "GET.PA": "Industrie",
 "GFC.PA": "Immobilier",
-"GLE.PA": "Finance",
+"GLE.PA": {
+"c": "France",
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
 "GLO.PA": "Industrie",
 "GNFT.PA": "Santé",
 "GOLD-EUR.PA": {
@@ -794,7 +950,11 @@
 "s": "Industrials"
 },
 "GTT.PA": "Énergie",
-"HO.PA": "Industrie",
+"HO.PA": {
+"c": "France",
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
 "IB1T.PA": {
 "i": "",
 "s": ""
@@ -811,7 +971,11 @@
 "ITP.PA": "Conso défensive",
 "IVA.PA": "Santé",
 "JCQ.PA": "Matériaux",
-"KER.PA": "Conso cyclique",
+"KER.PA": {
+"c": "France",
+"i": "Luxury Goods",
+"s": "Consumer Cyclical"
+},
 "KOF.PA": "Conso cyclique",
 "LBIRD.PA": "Santé",
 "LI.PA": "Immobilier",
@@ -821,19 +985,31 @@
 "s": ""
 },
 "LOUP.PA": "Conso défensive",
-"LR.PA": "Industrie",
+"LR.PA": {
+"c": "France",
+"i": "Electrical Equipment & Parts",
+"s": "Industrials"
+},
 "LSS.PA": "Technologie",
 "MAAT.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "MAU.PA": "Énergie",
-"MC.PA": "Conso cyclique",
+"MC.PA": {
+"c": "France",
+"i": "Luxury Goods",
+"s": "Consumer Cyclical"
+},
 "MEDCL.PA": "Santé",
 "MEMS.PA": "Technologie",
 "MERY.PA": "Immobilier",
 "MF.PA": "Finance",
-"ML.PA": "Autres",
+"ML.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "MMB.PA": "Conso cyclique",
 "MMT.PA": {
 "i": "Broadcasting",
@@ -859,8 +1035,16 @@
 "i": "Auto Parts",
 "s": "Consumer Cyclical"
 },
-"OR.PA": "Conso défensive",
-"ORA.PA": "Communication",
+"OR.PA": {
+"c": "France",
+"i": "Household & Personal Products",
+"s": "Consumer Defensive"
+},
+"ORA.PA": {
+"c": "France",
+"i": "Telecom Services",
+"s": "Communication Services"
+},
 "OSE.PA": "Santé",
 "OVH.PA": "Technologie",
 "PARRO.PA": {
@@ -877,7 +1061,11 @@
 "i": "Biotechnology",
 "s": "Healthcare"
 },
-"PUB.PA": "Communication",
+"PUB.PA": {
+"c": "France",
+"i": "Advertising Agencies",
+"s": "Communication Services"
+},
 "QDT.PA": {
 "i": "Software - Application",
 "s": "Technology"
@@ -897,15 +1085,35 @@
 },
 "RCO.PA": "Conso défensive",
 "RF.PA": "Finance",
-"RI.PA": "Conso défensive",
-"RMS.PA": "Conso cyclique",
-"RNO.PA": "Conso cyclique",
+"RI.PA": {
+"c": "France",
+"i": "Beverages - Wineries & Distilleries",
+"s": "Consumer Defensive"
+},
+"RMS.PA": {
+"c": "France",
+"i": "Luxury Goods",
+"s": "Consumer Cyclical"
+},
+"RNO.PA": {
+"c": "France",
+"i": "Auto Manufacturers",
+"s": "Consumer Cyclical"
+},
 "RUI.PA": "Énergie",
 "RXL.PA": "Technologie",
 "S30.PA": "Technologie",
-"SAF.PA": "Industrie",
+"SAF.PA": {
+"c": "France",
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
 "SAMS.PA": "Industrie",
-"SAN.PA": "Santé",
+"SAN.PA": {
+"c": "France",
+"i": "Drug Manufacturers - General",
+"s": "Healthcare"
+},
 "SCHP.PA": "Industrie",
 "SCR.PA": "Finance",
 "SESG.PA": "Communication",
@@ -913,7 +1121,11 @@
 "i": "",
 "s": ""
 },
-"SGO.PA": "Industrie",
+"SGO.PA": {
+"c": "France",
+"i": "Building Products & Equipment",
+"s": "Industrials"
+},
 "SK.PA": "Conso cyclique",
 "SLGN.PA": {
 "i": "",
@@ -932,9 +1144,21 @@
 "s": ""
 },
 "STF.PA": "Industrie",
-"STLAP.PA": "Conso cyclique",
-"STMPA.PA": "Technologie",
-"SU.PA": "Industrie",
+"STLAP.PA": {
+"c": "Netherlands",
+"i": "Auto Manufacturers",
+"s": "Consumer Cyclical"
+},
+"STMPA.PA": {
+"c": "Switzerland",
+"i": "Semiconductors",
+"s": "Technology"
+},
+"SU.PA": {
+"c": "France",
+"i": "Specialty Industrial Machinery",
+"s": "Industrials"
+},
 "SW.PA": "Industrie",
 "SWP.PA": {
 "i": "Software - Application",
@@ -945,18 +1169,34 @@
 "i": "",
 "s": ""
 },
-"TEP.PA": "Industrie",
+"TEP.PA": {
+"c": "France",
+"i": "Specialty Business Services",
+"s": "Industrials"
+},
 "TFI.PA": "Communication",
 "THEP.PA": "Industrie",
 "TKO.PA": "Finance",
 "TRI.PA": "Conso cyclique",
-"TTE.PA": "Énergie",
+"TTE.PA": {
+"c": "France",
+"i": "Oil & Gas Integrated",
+"s": "Energy"
+},
 "UBI.PA": "Communication",
-"URW.PA": "Immobilier",
+"URW.PA": {
+"c": "France",
+"i": "REIT - Retail",
+"s": "Real Estate"
+},
 "VAC.PA": "Conso cyclique",
 "VCT.PA": "Matériaux",
 "VETO.PA": "Santé",
-"VIE.PA": "Industrie",
+"VIE.PA": {
+"c": "France",
+"i": "Waste Management",
+"s": "Industrials"
+},
 "VIEBB.PA": {
 "i": "",
 "s": ""

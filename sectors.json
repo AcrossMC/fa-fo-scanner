@@ -1,18 +1,74 @@
 {
-"0007H.PA": "Autres",
-"1052P.PA": "Autres",
-"1071P.PA": "Autres",
-"2RQAB.PA": "Autres",
-"3EUL-XPAR.PA": "Autres",
-"4RQAB.PA": "Autres",
-"74SW.PA": "Technologie",
-"AABML.PA": "Autres",
-"AAC9L.PA": "Autres",
+"0007H.PA": {
+"i": "",
+"s": ""
+},
+"1025P.PA": {
+"i": "",
+"s": ""
+},
+"1027P.PA": {
+"i": "",
+"s": ""
+},
+"1052P.PA": {
+"i": "",
+"s": ""
+},
+"1053P.PA": {
+"i": "",
+"s": ""
+},
+"1071P.PA": {
+"i": "",
+"s": ""
+},
+"2RQAB.PA": {
+"i": "",
+"s": ""
+},
+"3EUL-XPAR.PA": {
+"i": "",
+"s": ""
+},
+"4RQAB.PA": {
+"i": "",
+"s": ""
+},
+"74SW.PA": {
+"i": "Software - Application",
+"s": "Technology"
+},
+"AABML.PA": {
+"i": "",
+"s": ""
+},
+"AABTL.PA": {
+"i": "",
+"s": ""
+},
+"AAC9L.PA": {
+"i": "",
+"s": ""
+},
 "AACEL.PA": "Autres",
-"AAD4L.PA": "Autres",
-"AB.PA": "Santé",
+"AAD4L.PA": {
+"i": "",
+"s": ""
+},
+"AAE1L.PA": {
+"i": "",
+"s": ""
+},
+"AB.PA": {
+"i": "Drug Manufacturers - Specialty & Generic",
+"s": "Healthcare"
+},
 "ABCA.PA": "Finance",
-"ABNX.PA": "Santé",
+"ABNX.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "ABVX.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"

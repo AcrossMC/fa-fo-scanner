@@ -85,31 +85,76 @@
 "ALSTI.PA": "Industrie",
 "ALTA.PA": "Immobilier",
 "ALTAO.PA": "Santé",
-"ALTD.PA": "Industrie",
-"ALTHE.PA": "Santé",
-"ALTHX.PA": "Santé",
-"ALTME.PA": "Santé",
-"ALVDM.PA": "Conso cyclique",
-"ALVIO.PA": "Santé",
+"ALTD.PA": {
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
+"ALTHE.PA": {
+"i": "Medical Devices",
+"s": "Healthcare"
+},
+"ALTHX.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
+"ALTME.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
+"ALVDM.PA": {
+"i": "Travel Services",
+"s": "Consumer Cyclical"
+},
+"ALVIO.PA": {
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "AM.PA": "Industrie",
 "AMUN.PA": "Finance",
 "ANTIN.PA": "Finance",
 "ARAMI.PA": "Conso cyclique",
 "ARG.PA": "Immobilier",
 "ASY.PA": "Industrie",
-"AT0000A04967.PA": "Autres",
+"AT0000A04967.PA": {
+"i": "",
+"s": ""
+},
 "ATE.PA": "Technologie",
 "ATEME.PA": "Technologie",
 "ATO.PA": "Technologie",
 "AUB.PA": "Technologie",
-"AUB5L.PA": "Autres",
-"AUB8L.PA": "Autres",
-"AUC7L.PA": "Autres",
-"AUD5L.PA": "Autres",
-"AUD7L.PA": "Autres",
-"AUTAA.PA": "Autres",
-"AUTAD.PA": "Autres",
-"AUTAF.PA": "Autres",
+"AUB5L.PA": {
+"i": "",
+"s": ""
+},
+"AUB8L.PA": {
+"i": "",
+"s": ""
+},
+"AUC7L.PA": {
+"i": "",
+"s": ""
+},
+"AUD5L.PA": {
+"i": "",
+"s": ""
+},
+"AUD7L.PA": {
+"i": "",
+"s": ""
+},
+"AUTAA.PA": {
+"i": "",
+"s": ""
+},
+"AUTAD.PA": {
+"i": "",
+"s": ""
+},
+"AUTAF.PA": {
+"i": "",
+"s": ""
+},
 "AYV.PA": "Industrie",
 "BB.PA": "Conso défensive",
 "BEN.PA": "Conso cyclique",
@@ -119,35 +164,95 @@
 "BNP.PA": "Finance",
 "BOL.PA": "Communication",
 "BON.PA": "Conso défensive",
-"BPCEB.PA": "Autres",
-"BPCFL.PA": "Autres",
-"BPCGK.PA": "Autres",
-"BPCGL.PA": "Autres",
-"BPCOF.PA": "Autres",
-"BPCOG.PA": "Autres",
-"BRNT.PA": "Autres",
+"BPCEB.PA": {
+"i": "",
+"s": ""
+},
+"BPCFL.PA": {
+"i": "",
+"s": ""
+},
+"BPCGK.PA": {
+"i": "",
+"s": ""
+},
+"BPCGL.PA": {
+"i": "",
+"s": ""
+},
+"BPCOF.PA": {
+"i": "",
+"s": ""
+},
+"BPCOG.PA": {
+"i": "",
+"s": ""
+},
+"BRNT.PA": {
+"i": "",
+"s": ""
+},
 "BVI.PA": "Industrie",
 "CA.PA": "Conso défensive",
-"CAAF.PA": "Autres",
-"CAF.PA": "Finance",
-"CAJAF.PA": "Autres",
-"CAJAG.PA": "Autres",
+"CAAF.PA": {
+"i": "",
+"s": ""
+},
+"CAF.PA": {
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
+"CAJAF.PA": {
+"i": "",
+"s": ""
+},
+"CAJAG.PA": {
+"i": "",
+"s": ""
+},
 "CAP.PA": "Technologie",
 "CARM.PA": "Immobilier",
-"CAT31.PA": "Finance",
+"CAT31.PA": {
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
 "CDA.PA": "Conso cyclique",
-"CDI.PA": "Conso cyclique",
+"CDI.PA": {
+"i": "Luxury Goods",
+"s": "Consumer Cyclical"
+},
 "CLARI.PA": "Santé",
-"CMNEA.PA": "Autres",
-"CNDF.PA": "Finance",
+"CMNEA.PA": {
+"i": "",
+"s": ""
+},
+"CNDF.PA": {
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
 "COFA.PA": "Finance",
-"COPAP.PA": "Autres",
-"COTY.PA": "Conso défensive",
+"COPAP.PA": {
+"i": "",
+"s": ""
+},
+"COTY.PA": {
+"i": "Household & Personal Products",
+"s": "Consumer Defensive"
+},
 "COV.PA": "Immobilier",
-"CRBP2.PA": "Finance",
-"CRUDP.PA": "Autres",
+"CRBP2.PA": {
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
+"CRUDP.PA": {
+"i": "",
+"s": ""
+},
 "CS.PA": "Finance",
-"CVX.PA": "Santé",
+"CVX.PA": {
+"i": "Medical Devices",
+"s": "Healthcare"
+},
 "DBG.PA": "Industrie",
 "DBV.PA": "Santé",
 "DEC.PA": "Communication",
@@ -155,42 +260,118 @@
 "DIM.PA": "Santé",
 "DSY.PA": "Technologie",
 "EAPI.PA": "Santé",
-"EC.PA": "Énergie",
+"EC.PA": {
+"i": "Oil & Gas E&P",
+"s": "Energy"
+},
 "EDEN.PA": "Finance",
-"EDFBS.PA": "Autres",
-"EDFBT.PA": "Autres",
+"EDFBS.PA": {
+"i": "",
+"s": ""
+},
+"EDFBT.PA": {
+"i": "",
+"s": ""
+},
 "EKI.PA": "Technologie",
 "EL.PA": "Santé",
-"ELEC.PA": "Services publics",
+"ELEC.PA": {
+"i": "Utilities - Renewable",
+"s": "Utilities"
+},
 "ELIOR.PA": "Conso cyclique",
 "ELIS.PA": "Industrie",
 "EMEIS.PA": "Santé",
 "EN.PA": "Industrie",
 "ENGI.PA": "Services publics",
 "ENX.PA": "Finance",
-"EQS.PA": "Santé",
+"EQS.PA": {
+"i": "Health Information Services",
+"s": "Healthcare"
+},
 "ERA.PA": "Matériaux",
 "ERF.PA": "Santé",
-"ETAAH.PA": "Autres",
-"ETACW.PA": "Autres",
-"ETAFE.PA": "Autres",
-"ETAGI.PA": "Autres",
-"ETAHK.PA": "Autres",
-"ETAHZ.PA": "Autres",
-"ETALD.PA": "Autres",
-"ETALR.PA": "Autres",
-"ETALX.PA": "Autres",
-"ETAMP.PA": "Autres",
-"ETAMU.PA": "Autres",
-"ETAMV.PA": "Autres",
-"ETANC.PA": "Autres",
+"ETAAH.PA": {
+"i": "",
+"s": ""
+},
+"ETACW.PA": {
+"i": "",
+"s": ""
+},
+"ETAFE.PA": {
+"i": "",
+"s": ""
+},
+"ETAGI.PA": {
+"i": "",
+"s": ""
+},
+"ETAHK.PA": {
+"i": "",
+"s": ""
+},
+"ETAHZ.PA": {
+"i": "",
+"s": ""
+},
+"ETALD.PA": {
+"i": "",
+"s": ""
+},
+"ETALR.PA": {
+"i": "",
+"s": ""
+},
+"ETALX.PA": {
+"i": "",
+"s": ""
+},
+"ETAMD.PA": {
+"i": "",
+"s": ""
+},
+"ETAMP.PA": {
+"i": "",
+"s": ""
+},
+"ETAMU.PA": {
+"i": "",
+"s": ""
+},
+"ETAMV.PA": {
+"i": "",
+"s": ""
+},
+"ETANC.PA": {
+"i": "",
+"s": ""
+},
 "ETANE.PA": "Autres",
-"ETANH.PA": "Autres",
-"ETANM.PA": "Autres",
-"ETANR.PA": "Autres",
-"ETANW.PA": "Autres",
-"ETANZ.PA": "Autres",
-"ETAPB.PA": "Autres",
+"ETANH.PA": {
+"i": "",
+"s": ""
+},
+"ETANM.PA": {
+"i": "",
+"s": ""
+},
+"ETANR.PA": {
+"i": "",
+"s": ""
+},
+"ETANW.PA": {
+"i": "",
+"s": ""
+},
+"ETANZ.PA": {
+"i": "",
+"s": ""
+},
+"ETAPB.PA": {
+"i": "",
+"s": ""
+},
 "ETAPC.PA": {
 "i": "",
 "s": ""

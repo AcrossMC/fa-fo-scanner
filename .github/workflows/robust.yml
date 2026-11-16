@@ -1,0 +1,39 @@
+name: Contrôle de robustesse
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Nombre d'actions (les plus liquides ; 0 = toutes les actions françaises de l'univers)"
+        default: "0"
+      fee:
+        description: "Frais par ordre en % (0,5 = PEA Boursorama formule Découverte, ordres d'environ 1 000 €)"
+        default: "0.5"
+
+permissions:
+  contents: read
+
+jobs:
+  robust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Contrôler la robustesse des résultats
+        run: python robust.py --tickers "${{ inputs.tickers }}" --fee "${{ inputs.fee }}" --out robust_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f robust_report.md ]; then cat robust_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: robustesse
+          path: |
+            robust_report.md
+            robust_trades.csv

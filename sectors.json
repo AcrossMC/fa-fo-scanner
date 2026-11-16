@@ -323,20 +323,32 @@
 "SGO.PA": "Industrie",
 "SK.PA": "Conso cyclique",
 "SLGN.PA": "Autres",
-"SLVRP.PA": "Autres",
+"SLVRP.PA": {
+"i": "",
+"s": ""
+},
 "SMCP.PA": "Conso cyclique",
 "SOI.PA": "Technologie",
 "SOP.PA": "Technologie",
 "SPIE.PA": "Industrie",
-"SSLN-XPAR.PA": "Autres",
+"SSLN-XPAR.PA": {
+"i": "",
+"s": ""
+},
 "STF.PA": "Industrie",
 "STLAP.PA": "Conso cyclique",
 "STMPA.PA": "Technologie",
 "SU.PA": "Industrie",
 "SW.PA": "Industrie",
-"SWP.PA": "Technologie",
+"SWP.PA": {
+"i": "Software - Application",
+"s": "Technology"
+},
 "TE.PA": "Énergie",
-"TECAF.PA": "Autres",
+"TECAF.PA": {
+"i": "",
+"s": ""
+},
 "TEP.PA": "Industrie",
 "TFI.PA": "Communication",
 "THEP.PA": "Industrie",
@@ -349,7 +361,10 @@
 "VCT.PA": "Matériaux",
 "VETO.PA": "Santé",
 "VIE.PA": "Industrie",
-"VIEBB.PA": "Autres",
+"VIEBB.PA": {
+"i": "",
+"s": ""
+},
 "VIL.PA": "Finance",
 "VIRI.PA": "Énergie",
 "VIRP.PA": "Santé",

@@ -654,6 +654,17 @@ def test_profit():
     print("OK profit", checked, "bougies comparées,", len(fa), "Fa,", len(sl_), "S")
 
 
+def test_clean_series():
+    import profit
+    c = np.r_[np.full(50, 100.0), np.full(30, 0.01), np.full(40, 0.011)]       # regroupement mal ajusté : x 1/10 000 au 51e jour
+    df = pd.DataFrame({"Open": c, "High": c, "Low": c, "Close": c, "Volume": 1.0})
+    out, n = profit.clean_series(df)
+    assert n == 50 and len(out) == 70 and out["Close"].max() < 1, (n, len(out))
+    ok, n2 = profit.clean_series(df.iloc[:50])
+    assert n2 == 0 and len(ok) == 50
+    print("OK clean_series")
+
+
 def test_backtest():
     import backtest as bt
     r = np.random.default_rng(5)
@@ -740,6 +751,7 @@ if __name__ == "__main__":
     test_modes()
     test_levels_and_sectors()
     test_icb()
+    test_clean_series()
     test_profit()
     test_carry_closed()
     test_s_cancelled_after_s()

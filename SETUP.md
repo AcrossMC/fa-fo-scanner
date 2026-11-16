@@ -126,3 +126,8 @@ Le workflow **Secteurs ICB** (onglet Actions) lit la classification officielle d
 1. Lancez-le une première fois avec `mode` = `probe` : il affiche ce qui est lu pour 5 actions (à me coller si le résultat semble vide).
 2. Si la lecture est correcte, relancez-le avec `mode` = `update` (puis il se met à jour tout seul chaque dimanche).
 Priorité des secteurs : `themes.csv`, puis ICB Euronext, puis Yahoo.
+
+## Étude du profit
+Onglet **Actions → Étude du profit → Run workflow** (valeurs par défaut : toutes les actions françaises de l'univers, 0,5 % de frais par ordre).
+Compter 15 à 40 minutes. Le rapport s'affiche en bas de la page de l'exécution (à me coller) ; les listes détaillées des trades
+(`profit_fa_trades.csv`, `profit_s_trades.csv`) sont dans les « Artifacts » de l'exécution, pour les étapes suivantes (recherche de motifs).

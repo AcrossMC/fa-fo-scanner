@@ -612,6 +612,48 @@ def test_carry_closed():
     print("OK carry_closed")
 
 
+def test_profit():
+    import profit
+    rng = np.random.default_rng(7)
+    n = 400
+    idx = pd.bdate_range("2023-01-02", periods=n, tz=sc.PARIS)
+    c = 100 * np.exp(np.cumsum(rng.normal(0.0004, 0.014, n)))
+    o = np.r_[c[0], c[:-1]] * (1 + rng.normal(0, .003, n))
+    h = np.maximum(o, c) * (1 + abs(rng.normal(0, .005, n)))
+    l = np.minimum(o, c) * (1 - abs(rng.normal(0, .005, n)))
+    df = pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=idx)
+    # 1) s_signals = règles de analyze_tf (comparaison sur plusieurs bougies)
+    hao, hah, hal, hac = sc.heikin_ashi(o, h, l, c)
+    up, dn, _ = profit.s_signals(hao, hah, hal, hac)
+    checked = 0
+    for k in range(60, n):
+        r = sc.analyze_tf(df.iloc[:k + 1], "1d", idx[k] + pd.Timedelta(hours=20), np.random.default_rng(0))
+        assert r is not None
+        assert (r["s"]["dir"] == "up") == bool(up[k]) and (r["s"]["dir"] == "down") == bool(dn[k]), (k, r["s"], up[k], dn[k])
+        checked += 1
+    assert up.sum() + dn.sum() > 0
+    # 2) préparation, trades Fa et S, rapport
+    A = profit.prep(df, "1d", idx[-1] + pd.Timedelta(days=1))
+    others = {"1d": A}
+    fa, _ = profit.fa_trades("X.PA", A, others)
+    assert fa and all(abs(x["ret"] - (x["exit"] / x["entry"] - 1)) < 1e-12 and x["bars"] >= 1 for x in fa)
+    sl_, _ = profit.s_trades("X.PA", A, others, 0.01)
+    # 3) simulation : TP atteint / SL touché / SL prioritaire dans une même bougie
+    B = {"n": 4, "o": np.array([10, 10, 10, 10.]), "h": np.array([10, 12, 10, 10.]), "l": np.array([10, 9.9, 9, 10.]), "c": np.array([10, 11, 10, 10.]), "st": np.zeros(4, int)}
+    r = profit.simulate(B, 0, 10.0, 9.5, [11.0], [(1.0, ("tp", 0))])
+    assert abs(r[0] - 0.10) < 1e-9 and r[1] is False, r                      # TP1 à 11 atteint en bougie 1
+    r = profit.simulate(B, 1, 10.0, 9.5, [11.0], [(1.0, ("tp", 0))])
+    assert abs(r[0] + 0.05) < 1e-9 and r[1] is True, r                       # SL (9,5) touché bougie 2
+    B["l"][1] = 9.0
+    r = profit.simulate(B, 0, 10.0, 9.5, [11.0], [(1.0, ("tp", 0))])
+    assert r[1] is True and abs(r[0] + 0.05) < 1e-9, r                       # même bougie : SL d'abord
+    assert profit.simulate(B, 0, 10.0, 9.5, [11.0], [(1.0, ("tp", 1))]) is None   # TP2 absent
+    meta = {"stocks": 1, "start": "2023", "fa_open": 0, "s_skipped": 0}
+    txt = profit.report(fa, sl_, meta, 0.005)
+    assert "Fa : entrée" in txt
+    print("OK profit", checked, "bougies comparées,", len(fa), "Fa,", len(sl_), "S")
+
+
 def test_backtest():
     import backtest as bt
     r = np.random.default_rng(5)
@@ -698,6 +740,7 @@ if __name__ == "__main__":
     test_modes()
     test_levels_and_sectors()
     test_icb()
+    test_profit()
     test_carry_closed()
     test_s_cancelled_after_s()
     test_lines_3mo()

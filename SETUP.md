@@ -131,3 +131,7 @@ Priorité des secteurs : `themes.csv`, puis ICB Euronext, puis Yahoo.
 Onglet **Actions → Étude du profit → Run workflow** (valeurs par défaut : toutes les actions françaises de l'univers, 0,5 % de frais par ordre).
 Compter 15 à 40 minutes. Le rapport s'affiche en bas de la page de l'exécution (à me coller) ; les listes détaillées des trades
 (`profit_fa_trades.csv`, `profit_s_trades.csv`) sont dans les « Artifacts » de l'exécution, pour les étapes suivantes (recherche de motifs).
+
+## Contrôle de robustesse
+Onglet **Actions → Contrôle de robustesse → Run workflow** (mêmes valeurs par défaut). Il compare les résultats de l'étude du profit à des entrées au hasard,
+donne des marges d'erreur, les résultats par année et la dépendance à quelques actions. Rapport en bas de la page de l'exécution.

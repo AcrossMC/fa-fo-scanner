@@ -161,3 +161,7 @@ Les études utilisent désormais 0,398 % par ordre : ordre de 500 € à 1,99 �
 Workflow **Toutes les études (rapport unique)** : lance en parallèle profit, robustesse, Fa/TP, S hebdo + marché, supports/résistances, CAC 40 et anticipation (2 ans, 60 actions),
 puis assemble les 7 rapports en un seul, affiché en bas de la page de l'exécution (job « synthese ») et téléchargeable dans l'artifact `tous-les-rapports`. Compter 1 à 2 heures.
 Si une étude échoue, les autres continuent et le rapport l'indique.
+
+## S hebdo sur d'autres places européennes
+Workflow **S hebdo sur d'autres places européennes** (valeurs par défaut, compter 30 à 60 min) : même S hebdomadaire (SL 1,5 ATR, sorties MM5 et plus haut 26-52 semaines) sur Amsterdam, Bruxelles, Allemagne, Milan, Madrid, Lisbonne, Helsinki et Vienne
+(liste `eu_universe.csv`, Paris en témoin), comparé à des entrées au hasard. Critères fixés à l'avance dans le rapport. Il est aussi inclus dans « Toutes les études ».

@@ -1,0 +1,251 @@
+ticker,name
+# Échantillon indépendant pour l'étude eu.py : grandes et moyennes valeurs de la zone euro hors Paris (format Yahoo). Les codes introuvables sont ignorés.
+ASML.AS,ASML
+SHELL.AS,Shell
+INGA.AS,ING
+PHIA.AS,Philips
+AD.AS,Ahold Delhaize
+HEIA.AS,Heineken
+UNA.AS,Unilever
+WKL.AS,Wolters Kluwer
+NN.AS,NN Group
+ASRNL.AS,ASR Nederland
+AKZA.AS,Akzo Nobel
+DSFIR.AS,DSM-Firmenich
+RAND.AS,Randstad
+MT.AS,ArcelorMittal
+PRX.AS,Prosus
+ADYEN.AS,Adyen
+BESI.AS,BE Semiconductor
+IMCD.AS,IMCD
+ABN.AS,ABN Amro
+AGN.AS,Aegon
+KPN.AS,KPN
+FUR.AS,Fugro
+ASM.AS,ASM International
+AALB.AS,Aalberts
+BAMNB.AS,BAM
+FLOW.AS,Flow Traders
+SBMO.AS,SBM Offshore
+TKWY.AS,Just Eat Takeaway
+OCI.AS,OCI
+VPK.AS,Vopak
+APAM.AS,Aperam
+CTP.AS,CTP
+WHA.AS,Wereldhave
+NSI.AS,NSI
+ABI.BR,AB InBev
+UCB.BR,UCB
+KBC.BR,KBC
+SOLB.BR,Solvay
+UMI.BR,Umicore
+GBLB.BR,GBL
+AGS.BR,ageas
+ACKB.BR,Ackermans
+COLR.BR,Colruyt
+ELI.BR,Elia
+SOF.BR,Sofina
+WDP.BR,WDP
+ARGX.BR,argenx
+MELE.BR,Melexis
+BEKB.BR,Bekaert
+BPOST.BR,bpost
+CFEB.BR,CFE
+DIE.BR,D'Ieteren
+EVS.BR,EVS
+GLPG.BR,Galapagos
+KIN.BR,Kinepolis
+PROX.BR,Proximus
+TESB.BR,Tessenderlo
+TNET.BR,Telenet
+XIOR.BR,Xior
+AED.BR,Aedifica
+ONT.BR,Ontex
+SAP.DE,SAP
+SIE.DE,Siemens
+ALV.DE,Allianz
+DTE.DE,Deutsche Telekom
+MBG.DE,Mercedes-Benz
+BMW.DE,BMW
+VOW3.DE,Volkswagen
+BAS.DE,BASF
+BAYN.DE,Bayer
+DBK.DE,Deutsche Bank
+MUV2.DE,Munich Re
+IFX.DE,Infineon
+ADS.DE,Adidas
+DHL.DE,DHL Group
+RWE.DE,RWE
+EOAN.DE,E.ON
+HEI.DE,Heidelberg Materials
+SY1.DE,Symrise
+FRE.DE,Fresenius
+FME.DE,Fresenius Medical Care
+MRK.DE,Merck KGaA
+CON.DE,Continental
+BEI.DE,Beiersdorf
+HEN3.DE,Henkel
+DB1.DE,Deutsche Boerse
+VNA.DE,Vonovia
+ZAL.DE,Zalando
+PUM.DE,Puma
+HNR1.DE,Hannover Rueck
+SHL.DE,Siemens Healthineers
+QIA.DE,Qiagen
+RHM.DE,Rheinmetall
+MTX.DE,MTU Aero Engines
+AIR.DE,Airbus
+LHA.DE,Lufthansa
+TUI1.DE,TUI
+1COV.DE,Covestro
+BNR.DE,Brenntag
+LEG.DE,LEG Immobilien
+TKA.DE,Thyssenkrupp
+SZG.DE,Salzgitter
+WCH.DE,Wacker Chemie
+GXI.DE,Gerresheimer
+EVK.DE,Evonik
+KGX.DE,Kion
+FPE3.DE,Fuchs
+HOT.DE,Hochtief
+AFX.DE,Carl Zeiss Meditec
+AIXA.DE,Aixtron
+NDX1.DE,Nordex
+SRT3.DE,Sartorius
+NEM.DE,Nemetschek
+JEN.DE,Jenoptik
+LXS.DE,Lanxess
+DUE.DE,Duerr
+G1A.DE,GEA
+PSM.DE,ProSiebenSat.1
+SDF.DE,K+S
+UTDI.DE,United Internet
+S92.DE,SMA Solar
+SGL.DE,SGL Carbon
+HAB.DE,Hamborner
+RRTL.DE,RTL Group
+FNTN.DE,Freenet
+ADV.DE,Adtran
+HLAG.DE,Hapag-Lloyd
+ENEL.MI,Enel
+ISP.MI,Intesa Sanpaolo
+UCG.MI,UniCredit
+ENI.MI,Eni
+G.MI,Generali
+RACE.MI,Ferrari
+STLAM.MI,Stellantis
+TIT.MI,Telecom Italia
+PRY.MI,Prysmian
+MB.MI,Mediobanca
+BAMI.MI,Banco BPM
+BPE.MI,BPER
+LDO.MI,Leonardo
+SRG.MI,Snam
+TRN.MI,Terna
+AMP.MI,Amplifon
+CPR.MI,Campari
+DIA.MI,DiaSorin
+ERG.MI,ERG
+HER.MI,Hera
+IG.MI,Italgas
+IP.MI,Interpump
+MONC.MI,Moncler
+NEXI.MI,Nexi
+PIRC.MI,Pirelli
+REC.MI,Recordati
+SPM.MI,Saipem
+TEN.MI,Tenaris
+UNI.MI,Unipol
+BC.MI,Brunello Cucinelli
+BZU.MI,Buzzi
+A2A.MI,A2A
+AZM.MI,Azimut
+BGN.MI,Banca Generali
+BMED.MI,Banca Mediolanum
+BPSO.MI,Banca Popolare di Sondrio
+CNHI.MI,CNH
+DAL.MI,Danieli
+ENAV.MI,ENAV
+FBK.MI,FinecoBank
+IVG.MI,Iveco
+MN.MI,Marr
+PST.MI,Poste Italiane
+SFER.MI,Ferragamo
+SAN.MC,Banco Santander
+BBVA.MC,BBVA
+ITX.MC,Inditex
+IBE.MC,Iberdrola
+TEF.MC,Telefonica
+REP.MC,Repsol
+AMS.MC,Amadeus
+CABK.MC,CaixaBank
+SAB.MC,Sabadell
+BKT.MC,Bankinter
+ELE.MC,Endesa
+ENG.MC,Enagas
+FER.MC,Ferrovial
+GRF.MC,Grifols
+IAG.MC,IAG
+MAP.MC,Mapfre
+MRL.MC,Merlin Properties
+NTGY.MC,Naturgy
+RED.MC,Redeia
+ACS.MC,ACS
+ACX.MC,Acerinox
+ANA.MC,Acciona
+CLNX.MC,Cellnex
+COL.MC,Colonial
+FDR.MC,Fluidra
+IDR.MC,Indra
+LOG.MC,Logista
+MTS.MC,ArcelorMittal Madrid
+PHM.MC,PharmaMar
+SLR.MC,Solaria
+VIS.MC,Viscofan
+ALM.MC,Almirall
+CIE.MC,CIE Automotive
+EDP.LS,EDP
+GALP.LS,Galp
+JMT.LS,Jeronimo Martins
+EDPR.LS,EDP Renovaveis
+SON.LS,Sonae
+NOS.LS,NOS
+NVG.LS,Navigator
+ALTR.LS,Altri
+CTT.LS,CTT
+RENE.LS,REN
+BCP.LS,Millennium BCP
+SEM.LS,Semapa
+COR.LS,Corticeira Amorim
+NOKIA.HE,Nokia
+NESTE.HE,Neste
+KNEBV.HE,Kone
+SAMPO.HE,Sampo
+UPM.HE,UPM
+STERV.HE,Stora Enso
+FORTUM.HE,Fortum
+WRT1V.HE,Wartsila
+ELISA.HE,Elisa
+ORNBV.HE,Orion
+METSO.HE,Metso
+KCR.HE,Konecranes
+VALMT.HE,Valmet
+OUT1V.HE,Outokumpu
+QTCOM.HE,Qt Group
+HUH1V.HE,Huhtamaki
+FSKRS.HE,Fiskars
+KESKOB.HE,Kesko
+TYRES.HE,Nokian Tyres
+YIT.HE,YIT
+CGCBV.HE,Cargotec
+OMV.VI,OMV
+EBS.VI,Erste Group
+VER.VI,Verbund
+VOE.VI,Voestalpine
+ANDR.VI,Andritz
+WIE.VI,Wienerberger
+RBI.VI,Raiffeisen
+LNZ.VI,Lenzing
+VIG.VI,Vienna Insurance
+UQA.VI,Uniqa
+SBO.VI,Schoeller-Bleckmann

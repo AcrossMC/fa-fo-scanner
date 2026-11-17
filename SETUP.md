@@ -165,3 +165,7 @@ Si une étude échoue, les autres continuent et le rapport l'indique.
 ## S hebdo sur d'autres places européennes
 Workflow **S hebdo sur d'autres places européennes** (valeurs par défaut, compter 30 à 60 min) : même S hebdomadaire (SL 1,5 ATR, sorties MM5 et plus haut 26-52 semaines) sur Amsterdam, Bruxelles, Allemagne, Milan, Madrid, Lisbonne, Helsinki et Vienne
 (liste `eu_universe.csv`, Paris en témoin), comparé à des entrées au hasard. Critères fixés à l'avance dans le rapport. Il est aussi inclus dans « Toutes les études ».
+
+## Déclencheurs d'entrée (S hebdo + Donchian-2)
+Workflow **Déclencheurs d'entrée** (valeurs par défaut, 30 à 60 min) : compare S seule, S + action à plus de 30 % sous son plus haut 52 sem., S + volume élevé, S après 5 bougies rouges,
+un simple rebond HA (sans règle S) et Fa, tous avec la sortie « plus haut 26-52 semaines », contre le hasard. Inclus dans « Toutes les études ».

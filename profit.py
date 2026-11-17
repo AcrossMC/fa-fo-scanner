@@ -208,7 +208,7 @@ def sl_levels(A, k, others, entry):
 def simulate(A, k, entry, sl, tps, plan):
     """Rejoue la suite des bougies. Renvoie (rendement brut pondéré, sortie_par_SL) ou None si non résolu / niveaux manquants."""
     for _frac, target in plan:
-        if target[0] == "tp" and target[1] >= len(tps):
+        if target[0] == "tp" and target[1] >= len(tps):                 # "tpfo" : sans TP disponible, seul le Fo sort
             return None
     remaining = 1.0
     pnl = 0.0
@@ -224,13 +224,12 @@ def simulate(A, k, entry, sl, tps, plan):
         for idx, (frac, target) in enumerate(plan):
             if done[idx]:
                 continue
-            if target[0] == "tp":
+            if target[0] in ("tp", "tpfo") and target[1] < len(tps) and h >= tps[target[1]]:
                 lvl = tps[target[1]]
-                if h >= lvl:
-                    pnl += frac * (max(o, lvl) / entry - 1)
-                    remaining -= frac
-                    done[idx] = True
-            elif A["st"][j] == -1:
+                pnl += frac * (max(o, lvl) / entry - 1)
+                remaining -= frac
+                done[idx] = True
+            elif target[0] in ("fo", "tpfo") and A["st"][j] == -1:
                 pnl += frac * (c / entry - 1)
                 remaining -= frac
                 done[idx] = True

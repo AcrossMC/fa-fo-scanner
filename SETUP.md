@@ -135,3 +135,9 @@ Compter 15 à 40 minutes. Le rapport s'affiche en bas de la page de l'exécution
 ## Contrôle de robustesse
 Onglet **Actions → Contrôle de robustesse → Run workflow** (mêmes valeurs par défaut). Il compare les résultats de l'étude du profit à des entrées au hasard,
 donne des marges d'erreur, les résultats par année et la dépendance à quelques actions. Rapport en bas de la page de l'exécution.
+
+## Fa : objectifs (TP) et anticipation
+- **Fa avec objectifs (TP)** : compare la sortie au Fo à des sorties sur les MM / Tenkan des UT supérieures (rapide, quelques minutes, toutes les actions).
+- **Entrer avant la Fa (anticipation)** : rejoue 2 ans avec le vrai calcul de probabilité du scanner (11h, 14h, 15h) : entrée anticipée dès que p(Fa) dépasse 60/70/80 %,
+  sortie anticipée dès que p(Fo) dépasse 60/70/80 %. Plus long (compter 20 à 60 min pour 60 actions).
+Les deux affichent leur rapport en bas de la page de l'exécution.

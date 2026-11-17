@@ -1,0 +1,90 @@
+name: Toutes les études (rapport unique)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fee:
+        description: "Frais par ordre en % (0,398 = PEA Boursorama Découverte, ordre de 500 € : 1,99 € ; au-delà de 500 € : 0,5 %)"
+        default: "0.398"
+      tickers:
+        description: "Nombre d'actions (les plus liquides ; 0 = toutes les actions françaises de l'univers)"
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  etude:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: "1-profit", titre: "Étude du profit", cmd: "python profit.py", rapport: "profit_report.md" }
+          - { id: "2-robust", titre: "Contrôle de robustesse", cmd: "python robust.py", rapport: "robust_report.md" }
+          - { id: "3-fa-tp", titre: "Fa avec objectifs (TP)", cmd: "python fa_tp.py", rapport: "fa_tp_report.md" }
+          - { id: "4-regime", titre: "S hebdo et état du marché", cmd: "python regime.py", rapport: "regime_report.md" }
+          - { id: "5-sr", titre: "Supports et résistances", cmd: "python sr.py", rapport: "sr_report.md" }
+          - { id: "6-market", titre: "Fa, S et CAC 40", cmd: "python market.py", rapport: "market_report.md" }
+          - { id: "7-early", titre: "Entrer / sortir avant la validation (2 ans, 60 actions)", cmd: "python early.py --tickers 60", rapport: "early_report.md" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: ${{ matrix.titre }}
+        run: |
+          EXTRA=""
+          case "${{ matrix.id }}" in
+            7-early) ;;                                    # early.py : 60 actions déjà passées dans la commande
+            *) EXTRA="--tickers ${{ inputs.tickers }}" ;;
+          esac
+          ${{ matrix.cmd }} $EXTRA --fee "${{ inputs.fee }}" --out "${{ matrix.rapport }}"
+      - name: Garder le rapport
+        if: always()
+        run: |
+          mkdir -p out
+          if [ -f "${{ matrix.rapport }}" ]; then
+            { echo "<!-- ${{ matrix.id }} -->"; cat "${{ matrix.rapport }}"; } > "out/${{ matrix.id }}.md"
+          else
+            printf '<!-- ${{ matrix.id }} -->\n# ${{ matrix.titre }}\n\n**Échec : aucun rapport produit** (voir le journal de ce job).\n' > "out/${{ matrix.id }}.md"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rapport-${{ matrix.id }}
+          path: out/${{ matrix.id }}.md
+
+  synthese:
+    needs: etude
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rapport-*
+          merge-multiple: true
+          path: rapports
+      - name: Assembler un seul rapport
+        run: |
+          {
+            echo "# Toutes les études — rapport unique"
+            echo
+            echo "Frais par ordre : ${{ inputs.fee }} % · actions : ${{ inputs.tickers }} (0 = toutes). Copiez ce rapport en entier pour me le transmettre."
+            echo
+            for f in $(ls rapports/*.md | sort); do
+              echo; echo "---"; echo
+              cat "$f"
+              echo
+            done
+          } > tous_les_rapports.md
+          wc -c tous_les_rapports.md
+          # la page de l'exécution accepte ~1 Mo : on coupe au besoin (le fichier complet reste en artifact)
+          head -c 900000 tous_les_rapports.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tous-les-rapports
+          path: tous_les_rapports.md

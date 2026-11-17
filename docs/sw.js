@@ -1,5 +1,5 @@
 // Service worker minimal : l'interface s'ouvre hors-ligne, les données sont toujours demandées au réseau d'abord.
-const CACHE = "faso-v14";
+const CACHE = "faso-v15";
 const SHELL = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest", "icon-192.png"];
 
 self.addEventListener("install", (e) => {

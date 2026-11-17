@@ -80,8 +80,8 @@
   function savePos() { store("pos", JSON.stringify(pos)); }
 
   // ===================== Stops (SL) et objectifs (TP) d'une position =====================
-  // S : SL = la plus haute de deux valeurs : plus bas (mèche ou corps) de la bougie HA précédente, ou bas du corps de la 1re bougie
-  //     de la Fa en cours dans l'UT inférieure. Fa : pas de SL, sortie par un TP ou par un Fo dans la même UT.
+  // S : SL = le plus BAS de deux valeurs : plus bas (mèche ou corps) de la bougie HA précédente, ou prix d'entrée − 1,5 × ATR (stop large :
+  //     l'étude du profit montre que les stops serrés sont touchés par le bruit). Fa : pas de SL, sortie par un TP ou par un Fo dans la même UT.
   // S devenue Fa dans la même UT (Fa apparue après l'entrée) : plus de SL, sorties de la Fa.
   // TP : MM7 (HA), MM20/50/100/200 (classiques) de la même UT, ou « Fo » des UT supérieures (jusqu'à 3 mois) : Tenkan, MM7 si baissière.
   function plan(p, s) {
@@ -94,10 +94,9 @@
     let sl = null;
     if (mode === "S") {
       const a = { v: r.lv.low_prev, label: `Plus bas (mèche ou corps) de la bougie précédente, ${TF_LAB[p.tf]}` };
-      const lo = lowerTf(p.tf), lr = lo && s.tf[lo];
-      const b = lr && lr.state === "fa" && lr.lv && lr.lv.fa_body_low != null
-        ? { v: lr.lv.fa_body_low, label: `Bas du corps de la 1re bougie de la Fa en cours, ${TF_LAB[lo]}` } : null;
-      const best = b && b.v > a.v ? b : a, other = best === a ? b : a;
+      const ref = p.e != null ? p.e : price;
+      const b = r.lv.atr ? { v: ref - 1.5 * r.lv.atr, label: `1,5 × amplitude moyenne (ATR) sous le prix ${p.e != null ? "d'entrée" : "actuel"}, ${TF_LAB[p.tf]}` } : null;
+      const best = b && b.v < a.v ? b : a, other = best === a ? b : a;
       sl = { v: best.v, label: best.label, other: other || null };
     }
     const cands = [];
@@ -425,7 +424,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
         const help = (pl.converted ? "" : "")
           + (pl.sl.other ? `Autre valeur examinée : ${fmtPrice(pl.sl.other.v)} (${pl.sl.other.label}), plus basse, donc non retenue.`
             : `Pas de 2e valeur : aucune Fa en cours dans l'unité de temps inférieure${lowerTf(p.tf) ? "" : " (pas d'unité inférieure)"}.`)
-          + " Le SL est un stop en séance : la plus haute de deux valeurs (plus bas de la bougie précédente, mèche ou corps ; bas du corps de la 1re bougie Fa en cours de l'unité inférieure).";
+          + " Le SL est un stop en séance, volontairement large : le plus bas de deux valeurs (plus bas de la bougie précédente, mèche ou corps ; prix d'entrée moins 1,5 fois l'amplitude moyenne). Un stop trop serré est presque toujours touché par le simple bruit du marché.";
         h += `<h3>Stop loss (en séance) ${helpBtn(help)}</h3><div class="lvrow"><span class="lv-v">${fmtPrice(pl.sl.v)}</span><span class="muted">${fmtVs(pl.sl.v, s.price)}</span></div>`
           + `<div class="since">${esc(pl.sl.label)}</div>`;
       } else {

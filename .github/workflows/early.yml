@@ -7,8 +7,8 @@ on:
         description: "Nombre d'actions (les plus liquides ; 0 = toutes) : le rejeu est long, 60 pour commencer"
         default: "60"
       fee:
-        description: "Frais par ordre en % (0,5 = PEA Boursorama formule Découverte)"
-        default: "0.5"
+        description: "Frais par ordre en % (0,398 = PEA Boursorama Découverte, ordre de 500 € : 1,99 € ; au-delà de 500 € : 0,5 %)"
+        default: "0.398"
 
 permissions:
   contents: read

@@ -827,87 +827,108 @@
 "s": ""
 },
 "ETAMV.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETANC.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETANE.PA": "Autres",
 "ETANH.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETANM.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETANR.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETANW.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETANZ.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPB.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPC.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPH.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPI.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPJ.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPK.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPN.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPQ.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPR.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPU.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPV.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAPX.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETAQB.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "ETHFI-EUR.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -927,22 +948,27 @@
 "s": "Industrials"
 },
 "EXPL.PA": {
+"c": "France",
 "i": "Specialty Chemicals",
 "s": "Basic Materials"
 },
 "FCMC.PA": {
+"c": "France",
 "i": "Resorts & Casinos",
 "s": "Consumer Cyclical"
 },
 "FDE.PA": {
+"c": "France",
 "i": "Oil & Gas E&P",
 "s": "Energy"
 },
 "FDJU.PA": {
+"c": "France",
 "i": "Gambling",
 "s": "Consumer Cyclical"
 },
 "FGA.PA": {
+"c": "France",
 "i": "Aerospace & Defense",
 "s": "Industrials"
 },
@@ -967,6 +993,7 @@
 "s": ""
 },
 "FR001400NEF3.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -976,82 +1003,102 @@
 },
 "FR001400PM68.PA": "Autres",
 "FR001400QMF9.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400QOK5.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400QR21.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400SCF6.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400WYO4.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400X8V5.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400XJJ3.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400XLW2.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400Y7R4.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400Z2L7.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR001400ZKL2.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014012II5.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014012L86.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014015MU5.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014016CV2.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014016G71.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014017JX1.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014017Z10.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014018YR0.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "FR0014019113.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1087,10 +1134,12 @@
 "s": "Healthcare"
 },
 "GOLD-EUR.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "GPE.PA": {
+"c": "France",
 "i": "Waste Management",
 "s": "Industrials"
 },
@@ -1105,6 +1154,7 @@
 "s": "Industrials"
 },
 "IB1T.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },

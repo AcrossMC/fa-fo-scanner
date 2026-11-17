@@ -30,7 +30,7 @@ SPLIT_YEAR = 2016
 MAX_BARS = 600
 
 
-def manage(A, k, entry, legs, be=None, trail=None, tstop=None):
+def manage(A, k, entry, legs, be=None, trail=None, tstop=None, focut=None):
     """legs : [{frac, sl, tp}]. Renvoie (rendement brut, nb d'ordres de vente, barre de sortie, type du dernier événement) ou None si non résolu."""
     o, h, l, c, n = A["o"], A["h"], A["l"], A["c"], A["n"]
     live = [dict(g) for g in legs]
@@ -56,6 +56,11 @@ def manage(A, k, entry, legs, be=None, trail=None, tstop=None):
                 gross += g["frac"] * (c[j] / entry - 1)
             exits_at.add(j)
             return gross, len(exits_at), j, "TS"
+        if focut is not None and j == k + focut[0] and A["st"][j] == -1 and (not focut[1] or c[j] < entry):
+            for g in live:
+                gross += g["frac"] * (c[j] / entry - 1)
+            exits_at.add(j)
+            return gross, len(exits_at), j, "FO"
     return None
 
 

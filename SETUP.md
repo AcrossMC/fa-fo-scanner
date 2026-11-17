@@ -145,3 +145,7 @@ Les deux affichent leur rapport en bas de la page de l'exécution.
 ## S hebdomadaire et état du marché
 Workflow **S hebdo et état du marché** (valeurs par défaut). Teste 5 hypothèses fixées à l'avance (CAC sous sa MM 200 jours, CAC à plus de 10 % sous son plus haut,
 CAC en Fo hebdo, action à plus de 30 % sous son plus haut, action en Fo mensuelle) avec apprentissage jusqu'en 2015 et test à partir de 2016.
+
+## Supports et résistances de prix
+Workflow **Supports et résistances** (valeurs par défaut, compter 20 à 60 min). Compare, pour S (1j et hebdo) et Fa, des TP/SL placés sur des niveaux de prix
+(sommets/creux, plus haut/plus bas de N bougies, nombres ronds, zones de volume) à la règle actuelle (moyennes mobiles), sur les mêmes entrées, avec apprentissage jusqu'en 2015 et test à partir de 2016.

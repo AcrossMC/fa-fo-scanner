@@ -64,7 +64,11 @@
 "i": "Drug Manufacturers - Specialty & Generic",
 "s": "Healthcare"
 },
-"ABCA.PA": "Finance",
+"ABCA.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "ABNX.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
@@ -73,7 +77,11 @@
 "i": "Biotechnology",
 "s": "Healthcare"
 },
-"AC.PA": "Conso cyclique",
+"AC.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "ACA.PA": {
 "c": "France",
 "i": "Banks - Diversified",
@@ -442,14 +450,26 @@
 "i": "Rental & Leasing Services",
 "s": "Industrials"
 },
-"BB.PA": "Conso défensive",
-"BEN.PA": "Conso cyclique",
+"BB.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"BEN.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "BIM.PA": {
 "c": "France",
 "i": "Diagnostics & Research",
 "s": "Healthcare"
 },
-"BLC.PA": "Santé",
+"BLC.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "BN.PA": {
 "c": "France",
 "i": "Packaged Foods",
@@ -465,7 +485,11 @@
 "i": "Entertainment",
 "s": "Communication Services"
 },
-"BON.PA": "Conso défensive",
+"BON.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "BPCEB.PA": {
 "i": "",
 "s": ""
@@ -530,12 +554,20 @@
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
-"CDA.PA": "Conso cyclique",
+"CDA.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "CDI.PA": {
 "i": "Luxury Goods",
 "s": "Consumer Cyclical"
 },
-"CLARI.PA": "Santé",
+"CLARI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "CMNEA.PA": {
 "i": "",
 "s": ""
@@ -629,7 +661,11 @@
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
-"ELIOR.PA": "Conso cyclique",
+"ELIOR.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "ELIS.PA": {
 "c": "France",
 "i": "Specialty Business Services",
@@ -838,9 +874,21 @@
 "i": "Engineering & Construction",
 "s": "Industrials"
 },
-"FII.PA": "Industrie",
-"FNAC.PA": "Conso cyclique",
-"FR.PA": "Conso cyclique",
+"FII.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"FNAC.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"FR.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "FR001400NEF3.PA": {
 "i": "",
 "s": ""
@@ -930,10 +978,22 @@
 "i": "",
 "s": ""
 },
-"FRVIA.PA": "Conso cyclique",
+"FRVIA.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "GBS.PA": "Autres",
-"GET.PA": "Industrie",
-"GFC.PA": "Immobilier",
+"GET.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"GFC.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "GLE.PA": {
 "c": "France",
 "i": "Banks - Regional",
@@ -949,7 +1009,11 @@
 "i": "Waste Management",
 "s": "Industrials"
 },
-"GTT.PA": "Énergie",
+"GTT.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "HO.PA": {
 "c": "France",
 "i": "Aerospace & Defense",
@@ -959,16 +1023,32 @@
 "i": "",
 "s": ""
 },
-"ICAD.PA": "Immobilier",
+"ICAD.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "IDL.PA": "Industrie",
 "INF.PA": "Technologie",
 "IPH.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
 },
-"IPN.PA": "Santé",
-"IPS.PA": "Industrie",
-"ITP.PA": "Conso défensive",
+"IPN.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"IPS.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"ITP.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "IVA.PA": "Santé",
 "JCQ.PA": "Matériaux",
 "KER.PA": {
@@ -976,21 +1056,41 @@
 "i": "Luxury Goods",
 "s": "Consumer Cyclical"
 },
-"KOF.PA": "Conso cyclique",
+"KOF.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "LBIRD.PA": "Santé",
-"LI.PA": "Immobilier",
-"LNA.PA": "Santé",
+"LI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"LNA.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "LOIL.PA": {
 "i": "",
 "s": ""
 },
-"LOUP.PA": "Conso défensive",
+"LOUP.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "LR.PA": {
 "c": "France",
 "i": "Electrical Equipment & Parts",
 "s": "Industrials"
 },
-"LSS.PA": "Technologie",
+"LSS.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "MAAT.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
@@ -1004,33 +1104,65 @@
 "MEDCL.PA": "Santé",
 "MEMS.PA": "Technologie",
 "MERY.PA": "Immobilier",
-"MF.PA": "Finance",
+"MF.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "ML.PA": {
 "c": "?",
 "i": "",
 "s": ""
 },
-"MMB.PA": "Conso cyclique",
+"MMB.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "MMT.PA": {
 "i": "Broadcasting",
 "s": "Communication Services"
 },
-"MRN.PA": "Industrie",
-"MTU.PA": "Industrie",
+"MRN.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"MTU.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "NAE.PA": {
 "i": "Oil & Gas Refining & Marketing",
 "s": "Energy"
 },
 "NANO.PA": "Santé",
-"NEX.PA": "Industrie",
+"NEX.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "NGASP.PA": {
 "i": "",
 "s": ""
 },
-"NK.PA": "Matériaux",
+"NK.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "NRO.PA": "Technologie",
-"NXI.PA": "Immobilier",
-"ODET.PA": "Énergie",
+"NXI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"ODET.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "OPM.PA": {
 "i": "Auto Parts",
 "s": "Consumer Cyclical"
@@ -1046,7 +1178,11 @@
 "s": "Communication Services"
 },
 "OSE.PA": "Santé",
-"OVH.PA": "Technologie",
+"OVH.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "PARRO.PA": {
 "i": "Computer Hardware",
 "s": "Technology"
@@ -1056,7 +1192,11 @@
 "s": "Financial Services"
 },
 "PLNW.PA": "Technologie",
-"PLX.PA": "Industrie",
+"PLX.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "POXEL.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
@@ -1078,13 +1218,25 @@
 "i": "",
 "s": ""
 },
-"RBT.PA": "Matériaux",
+"RBT.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "RCIDL.PA": {
 "i": "",
 "s": ""
 },
-"RCO.PA": "Conso défensive",
-"RF.PA": "Finance",
+"RCO.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"RF.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "RI.PA": {
 "c": "France",
 "i": "Beverages - Wineries & Distilleries",
@@ -1100,8 +1252,16 @@
 "i": "Auto Manufacturers",
 "s": "Consumer Cyclical"
 },
-"RUI.PA": "Énergie",
-"RXL.PA": "Technologie",
+"RUI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"RXL.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "S30.PA": "Technologie",
 "SAF.PA": {
 "c": "France",
@@ -1115,7 +1275,11 @@
 "s": "Healthcare"
 },
 "SCHP.PA": "Industrie",
-"SCR.PA": "Finance",
+"SCR.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "SESG.PA": "Communication",
 "SGGW.PA": {
 "i": "",
@@ -1126,7 +1290,11 @@
 "i": "Building Products & Equipment",
 "s": "Industrials"
 },
-"SK.PA": "Conso cyclique",
+"SK.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "SLGN.PA": {
 "i": "",
 "s": ""
@@ -1136,9 +1304,21 @@
 "s": ""
 },
 "SMCP.PA": "Conso cyclique",
-"SOI.PA": "Technologie",
-"SOP.PA": "Technologie",
-"SPIE.PA": "Industrie",
+"SOI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"SOP.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"SPIE.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "SSLN-XPAR.PA": {
 "i": "",
 "s": ""
@@ -1159,12 +1339,20 @@
 "i": "Specialty Industrial Machinery",
 "s": "Industrials"
 },
-"SW.PA": "Industrie",
+"SW.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "SWP.PA": {
 "i": "Software - Application",
 "s": "Technology"
 },
-"TE.PA": "Énergie",
+"TE.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "TECAF.PA": {
 "i": "",
 "s": ""
@@ -1174,24 +1362,48 @@
 "i": "Specialty Business Services",
 "s": "Industrials"
 },
-"TFI.PA": "Communication",
+"TFI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "THEP.PA": "Industrie",
-"TKO.PA": "Finance",
-"TRI.PA": "Conso cyclique",
+"TKO.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"TRI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "TTE.PA": {
 "c": "France",
 "i": "Oil & Gas Integrated",
 "s": "Energy"
 },
-"UBI.PA": "Communication",
+"UBI.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "URW.PA": {
 "c": "France",
 "i": "REIT - Retail",
 "s": "Real Estate"
 },
 "VAC.PA": "Conso cyclique",
-"VCT.PA": "Matériaux",
-"VETO.PA": "Santé",
+"VCT.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"VETO.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "VIE.PA": {
 "c": "France",
 "i": "Waste Management",
@@ -1201,20 +1413,48 @@
 "i": "",
 "s": ""
 },
-"VIL.PA": "Finance",
+"VIL.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "VIRI.PA": "Énergie",
-"VIRP.PA": "Santé",
-"VIV.PA": "Communication",
-"VK.PA": "Matériaux",
-"VLA.PA": "Santé",
+"VIRP.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"VIV.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"VK.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
+"VLA.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "VLTSA.PA": "Services publics",
-"VRLA.PA": "Conso cyclique",
+"VRLA.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "VU.PA": "Technologie",
 "WAVE.PA": "Technologie",
 "WEATP.PA": {
 "i": "",
 "s": ""
 },
-"WLN.PA": "Technologie",
+"WLN.PA": {
+"c": "?",
+"i": "",
+"s": ""
+},
 "XFAB.PA": "Technologie"
 }

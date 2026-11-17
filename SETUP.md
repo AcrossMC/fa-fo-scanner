@@ -169,3 +169,7 @@ Workflow **S hebdo sur d'autres places européennes** (valeurs par défaut, comp
 ## Déclencheurs d'entrée (S hebdo + Donchian-2)
 Workflow **Déclencheurs d'entrée** (valeurs par défaut, 30 à 60 min) : compare S seule, S + action à plus de 30 % sous son plus haut 52 sem., S + volume élevé, S après 5 bougies rouges,
 un simple rebond HA (sans règle S) et Fa, tous avec la sortie « plus haut 26-52 semaines », contre le hasard. Inclus dans « Toutes les études ».
+
+## Gestion du trade S+H4
+Workflow **Gestion du trade S+H4** (30 à 60 min) : (1) à 2, 4, 8 et 13 semaines, part des trades encore ouverts qui finissent à l'objectif ou au stop selon leur rendement du moment et l'état Fo ;
+(2) sorties dans le temps, stop remonté à l'entrée, stop suiveur, sortie en deux fois et stop scindé, comparés à la règle simple sur les mêmes entrées (frais d'ordres supplémentaires comptés).

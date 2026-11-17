@@ -28,7 +28,8 @@ jobs:
           - { id: "5-sr", titre: "Supports et résistances", cmd: "python sr.py", rapport: "sr_report.md" }
           - { id: "6-market", titre: "Fa, S et CAC 40", cmd: "python market.py", rapport: "market_report.md" }
           - { id: "7-eu", titre: "S hebdo sur d'autres places européennes", cmd: "python eu.py", rapport: "eu_report.md" }
-          - { id: "8-early", titre: "Entrer / sortir avant la validation (2 ans, 60 actions)", cmd: "python early.py --tickers 60", rapport: "early_report.md" }
+          - { id: "8-entries", titre: "Déclencheurs d'entrée (S hebdo + Donchian-2)", cmd: "python entries.py", rapport: "entries_report.md" }
+          - { id: "9-early", titre: "Entrer / sortir avant la validation (2 ans, 60 actions)", cmd: "python early.py --tickers 60", rapport: "early_report.md" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -40,7 +41,7 @@ jobs:
         run: |
           EXTRA=""
           case "${{ matrix.id }}" in
-            8-early|7-eu) ;;                                    # early.py : 60 actions déjà passées dans la commande
+            9-early|7-eu|8-entries) ;;                                    # early.py : 60 actions déjà passées dans la commande
             *) EXTRA="--tickers ${{ inputs.tickers }}" ;;
           esac
           ${{ matrix.cmd }} $EXTRA --fee "${{ inputs.fee }}" --out "${{ matrix.rapport }}"

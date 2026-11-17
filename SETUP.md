@@ -149,3 +149,7 @@ CAC en Fo hebdo, action à plus de 30 % sous son plus haut, action en Fo mensuel
 ## Supports et résistances de prix
 Workflow **Supports et résistances** (valeurs par défaut, compter 20 à 60 min). Compare, pour S (1j et hebdo) et Fa, des TP/SL placés sur des niveaux de prix
 (sommets/creux, plus haut/plus bas de N bougies, nombres ronds, zones de volume) à la règle actuelle (moyennes mobiles), sur les mêmes entrées, avec apprentissage jusqu'en 2015 et test à partir de 2016.
+
+## CAC 40 et configurations
+Workflow **CAC 40 et configurations** (valeurs par défaut, compter 15 à 40 min). Pour Fa et S (1j, hebdo) : rendement de chaque trade comparé à la variation du CAC 40 sur la même période,
+puis résultats selon la tendance du CAC à l'entrée (20 séances) et sa position par rapport à sa MM 200 jours (S comparé à des entrées au hasard dans le même contexte).

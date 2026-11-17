@@ -86,7 +86,7 @@ def collect(args, rng, universe=None, now=None):
             if fa:
                 tags.append("Fa")
             for g in tags:
-                rows.append({"trigger": g, "ticker": t, "kind": "S", "time": A["ends"][k], "ret": r, "s_flag": is_s,
+                rows.append({"trigger": g, "market": eu.market_of(t), "ticker": t, "kind": "S", "time": A["ends"][k], "ret": r, "s_flag": is_s,
                              "H4": h4, "Vol": vo, "Série": serie})
         for _ in range(1):
             cand = [kk for kk in range(105, A["n"] - 1)]
@@ -94,7 +94,7 @@ def collect(args, rng, universe=None, now=None):
             for kk in (rng.choice(cand, size=m, replace=False) if m else []):
                 r2 = entry_ret(A, arrs, S, kk, fee_rt)
                 if r2 is not None:
-                    rows.append({"trigger": "H", "ticker": t, "kind": "H", "time": A["ends"][kk], "ret": r2, "s_flag": False, "H4": False, "Vol": False, "Série": False})
+                    rows.append({"trigger": "H", "market": eu.market_of(t), "ticker": t, "kind": "H", "time": A["ends"][kk], "ret": r2, "s_flag": False, "H4": False, "Vol": False, "Série": False})
         if i % 25 == 0:
             print(f"  {i}/{len(ranked)} actions, {len(rows)} lignes, {int(time.time() - t0)} s", flush=True)
     return pd.DataFrame(rows), len(ranked)
@@ -144,6 +144,27 @@ def report(df, n, fee, rng):
         verd[g] = ok
         if t:
             L.append(f"| **{g}** | {pct(a['adv']) if a else '–'} [{pct(a['alo']) if a else '–'}] | {pct(b['adv']) if b else '–'} [{pct(b['alo']) if b else '–'}] | {pct(t['mean'])} | {pct(ts['mean']) if ts else '–'} | {'**retenu**' if ok else 'non'} |")
+    L += ["", "## S+H4 place par place", "",
+          "Le filtre tient-il dans chaque place, ou seulement en France ? Critère fixé à l'avance : avantage sur le hasard > 0 dans au moins 6 places sur 9, ET > 0 avec IC 95 % > 0 à la fois à Paris et hors Paris.", "",
+          "| place | S+H4 | moyenne nette | hasard | avantage | IC de l'avantage | S sans filtre | écart S+H4 − S sans | IC de l'écart |", "|---|---|---|---|---|---|---|---|---|"]
+    Hh, S4 = df[df["kind"] == "H"], df[df["trigger"] == "S+H4"]
+    pos = tot = 0
+    groups = [(m, df["market"] == m) for m in eu.MARKETS.values()]
+    for lab, sel in groups + [("**Hors Paris**", ~df["market"].str.startswith("Paris")), ("**Paris**", df["market"].str.startswith("Paris"))]:
+        a, h, sd = S4[sel.reindex(S4.index, fill_value=False)], Hh[sel.reindex(Hh.index, fill_value=False)], Sd[sel.reindex(Sd.index, fill_value=False)]
+        x = eu.stat(pd.concat([a, h]), rng)
+        if x is None:
+            continue
+        flag = sd["H4"].to_numpy(bool)
+        dd = regime.diff_ci(sd["time"], sd["ret"].to_numpy(), flag, rng, 95) if flag.sum() >= 30 and (~flag).sum() >= 30 else (np.nan, np.nan, np.nan)
+        if not lab.startswith("**"):
+            tot += 1
+            pos += x["adv"] > 0
+        L.append(f"| {lab} | {x['n']} | **{pct(x['mean'])}** | {pct(x['hasard'])} | **{pct(x['adv'])}** | [{pct(x['alo'])} ; {pct(x['ahi'])}] | {int((~flag).sum())} | {pct(dd[0])} | [{pct(dd[1])} ; {pct(dd[2])}] |")
+        res[("pl", lab)] = x
+    xp, xe = res.get(("pl", "**Paris**")), res.get(("pl", "**Hors Paris**"))
+    okp = bool(tot and pos >= 6 and xp and xe and xp["alo"] > 0 and xe["alo"] > 0)
+    L += ["", f"Avantage > 0 dans {pos} places sur {tot}. Verdict place par place : {'**le filtre tient partout**' if okp else 'critères non tous remplis'}."]
     L += ["", "## Verdict", ""]
     kept = [g for g, v in verd.items() if v]
     L.append("- Retenus : " + (", ".join(kept) if kept else "aucun — S hebdomadaire seule reste le meilleur déclencheur testé."))

@@ -141,3 +141,7 @@ donne des marges d'erreur, les résultats par année et la dépendance à quelqu
 - **Entrer avant la Fa (anticipation)** : rejoue 2 ans avec le vrai calcul de probabilité du scanner (11h, 14h, 15h) : entrée anticipée dès que p(Fa) dépasse 60/70/80 %,
   sortie anticipée dès que p(Fo) dépasse 60/70/80 %. Plus long (compter 20 à 60 min pour 60 actions).
 Les deux affichent leur rapport en bas de la page de l'exécution.
+
+## S hebdomadaire et état du marché
+Workflow **S hebdo et état du marché** (valeurs par défaut). Teste 5 hypothèses fixées à l'avance (CAC sous sa MM 200 jours, CAC à plus de 10 % sous son plus haut,
+CAC en Fo hebdo, action à plus de 30 % sous son plus haut, action en Fo mensuelle) avec apprentissage jusqu'en 2015 et test à partir de 2016.

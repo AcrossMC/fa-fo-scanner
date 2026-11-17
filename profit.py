@@ -104,7 +104,7 @@ def prep(df, tf, now):
     ends = [end_of(ts, tf) for ts in df.index]
     keep = np.array([e <= now for e in ends])
     df = df[keep]
-    ends = pd.DatetimeIndex([e for e, k in zip(ends, keep) if k])
+    ends = pd.DatetimeIndex([e for e, k in zip(ends, keep) if k]).as_unit("ns")      # unité fixe : comparaisons en nanosecondes fiables
     if len(df) < sc.MIN_BARS:
         return None
     o, h, l, c = (df[k].to_numpy(dtype=float) for k in ("Open", "High", "Low", "Close"))

@@ -420,9 +420,13 @@ def test_pending():
     assert sent[0][0] == "⭐ 🛑 SL 1j 93% · AIR" and sent[0][3] == 5 and "160.00" in sent[0][1], sent
     # probabilité de toucher le SL, et règle du SL (la plus haute de deux valeurs ; S devenue Fa : plus de SL)
     assert sc.p_touch(100, 101, 0.02) == 1.0 and 0.0 < sc.p_touch(100, 98, 0.02) < 0.5 and sc.p_touch(100, 90, 0.01) < 0.001
-    stk = {"tf": {"1d": {"state": "none", "since": "2026-11-01T00:00:00+01:00", "lv": {"low_prev": 95.0}},
-                  "4h": {"state": "fa", "since": "2026-11-12T10:00:00+01:00", "lv": {"low_prev": 1, "fa_body_low": 97.0}}}}
-    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (97.0, "S")
+    stk = {"price": 100.0, "tf": {"1d": {"state": "none", "since": "2026-11-01T00:00:00+01:00", "lv": {"low_prev": 95.0, "atr": 4.0}},
+                                  "4h": {"state": "fa", "since": "2026-11-12T10:00:00+01:00", "lv": {"low_prev": 1, "fa_body_low": 97.0}}}}
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (94.0, "S")                  # min(95 ; 100 - 1,5 x 4 = 94) : stop large
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1, "e": 110.0}, stk) == (95.0, "S")      # prix d'entrée 110 : min(95 ; 104) = 95
+    stk["tf"]["1d"]["lv"]["atr"] = None
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (95.0, "S")                  # sans ATR : plus bas de la bougie précédente
+    stk["tf"]["1d"]["lv"]["atr"] = 4.0
     assert sc.position_sl({"c": "Fa", "tf": "1d", "ts": 1}, stk) == (None, "Fa")
     stk["tf"]["1d"].update(state="fa")
     assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (None, "Fa")

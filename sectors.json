@@ -252,12 +252,20 @@
 "i": "Specialty Chemicals",
 "s": "Basic Materials"
 },
-"AL2SI.PA": "Technologie",
+"AL2SI.PA": {
+"c": "France",
+"i": "Computer Hardware",
+"s": "Technology"
+},
 "ALAGO.PA": {
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
-"ALBFR.PA": "Technologie",
+"ALBFR.PA": {
+"c": "France",
+"i": "Software - Application",
+"s": "Technology"
+},
 "ALBPS.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
@@ -266,7 +274,11 @@
 "i": "Medical Instruments & Supplies",
 "s": "Healthcare"
 },
-"ALCLS.PA": "Santé",
+"ALCLS.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "ALCPB.PA": {
 "i": "Software - Application",
 "s": "Technology"
@@ -295,7 +307,11 @@
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
-"ALHEX.PA": "Conso cyclique",
+"ALHEX.PA": {
+"c": "France",
+"i": "Residential Construction",
+"s": "Consumer Cyclical"
+},
 "ALHG.PA": {
 "i": "Specialty Business Services",
 "s": "Industrials"
@@ -304,7 +320,11 @@
 "i": "Semiconductors",
 "s": "Technology"
 },
-"ALLIX.PA": "Technologie",
+"ALLIX.PA": {
+"c": "France",
+"i": "Software - Infrastructure",
+"s": "Technology"
+},
 "ALMDT.PA": {
 "i": "Medical Devices",
 "s": "Healthcare"
@@ -354,7 +374,11 @@
 "i": "Specialty Industrial Machinery",
 "s": "Industrials"
 },
-"ALTA.PA": "Immobilier",
+"ALTA.PA": {
+"c": "France",
+"i": "REIT - Residential",
+"s": "Real Estate"
+},
 "ALTAO.PA": {
 "i": "Biotechnology",
 "s": "Healthcare"
@@ -393,10 +417,26 @@
 "i": "Asset Management",
 "s": "Financial Services"
 },
-"ANTIN.PA": "Finance",
-"ARAMI.PA": "Conso cyclique",
-"ARG.PA": "Immobilier",
-"ASY.PA": "Industrie",
+"ANTIN.PA": {
+"c": "France",
+"i": "Asset Management",
+"s": "Financial Services"
+},
+"ARAMI.PA": {
+"c": "France",
+"i": "Auto & Truck Dealerships",
+"s": "Consumer Cyclical"
+},
+"ARG.PA": {
+"c": "France",
+"i": "REIT - Industrial",
+"s": "Real Estate"
+},
+"ASY.PA": {
+"c": "France",
+"i": "Engineering & Construction",
+"s": "Industrials"
+},
 "AT0000A04967.PA": {
 "i": "",
 "s": ""
@@ -406,13 +446,21 @@
 "i": "Information Technology Services",
 "s": "Technology"
 },
-"ATEME.PA": "Technologie",
+"ATEME.PA": {
+"c": "France",
+"i": "Communication Equipment",
+"s": "Technology"
+},
 "ATO.PA": {
 "c": "France",
 "i": "Information Technology Services",
 "s": "Technology"
 },
-"AUB.PA": "Technologie",
+"AUB.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "AUB5L.PA": {
 "i": "",
 "s": ""
@@ -549,7 +597,11 @@
 "i": "Information Technology Services",
 "s": "Technology"
 },
-"CARM.PA": "Immobilier",
+"CARM.PA": {
+"c": "France",
+"i": "REIT - Retail",
+"s": "Real Estate"
+},
 "CAT31.PA": {
 "i": "Banks - Regional",
 "s": "Financial Services"
@@ -576,7 +628,16 @@
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
-"COFA.PA": "Finance",
+"CO.PA": {
+"c": "France",
+"i": "Grocery Stores",
+"s": "Consumer Defensive"
+},
+"COFA.PA": {
+"c": "France",
+"i": "Insurance - Reinsurance",
+"s": "Financial Services"
+},
 "COPAP.PA": {
 "i": "",
 "s": ""
@@ -612,7 +673,11 @@
 "i": "Waste Management",
 "s": "Industrials"
 },
-"DBV.PA": "Santé",
+"DBV.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "DEC.PA": {
 "c": "France",
 "i": "Advertising Agencies",
@@ -633,7 +698,11 @@
 "i": "Software - Application",
 "s": "Technology"
 },
-"EAPI.PA": "Santé",
+"EAPI.PA": {
+"c": "France",
+"i": "Drug Manufacturers - Specialty & Generic",
+"s": "Healthcare"
+},
 "EC.PA": {
 "i": "Oil & Gas E&P",
 "s": "Energy"
@@ -651,7 +720,11 @@
 "i": "",
 "s": ""
 },
-"EKI.PA": "Technologie",
+"EKI.PA": {
+"c": "France",
+"i": "Communication Equipment",
+"s": "Technology"
+},
 "EL.PA": {
 "c": "France",
 "i": "Medical Instruments & Supplies",
@@ -848,7 +921,11 @@
 "i": "Aerospace & Defense",
 "s": "Industrials"
 },
-"EXENS.PA": "Industrie",
+"EXENS.PA": {
+"c": "France",
+"i": "Aerospace & Defense",
+"s": "Industrials"
+},
 "EXPL.PA": {
 "i": "Specialty Chemicals",
 "s": "Basic Materials"
@@ -999,8 +1076,16 @@
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
-"GLO.PA": "Industrie",
-"GNFT.PA": "Santé",
+"GLO.PA": {
+"c": "France",
+"i": "Specialty Business Services",
+"s": "Industrials"
+},
+"GNFT.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "GOLD-EUR.PA": {
 "i": "",
 "s": ""
@@ -1033,8 +1118,13 @@
 "i": "Integrated Freight & Logistics",
 "s": "Industrials"
 },
-"INF.PA": "Technologie",
+"INF.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "IPH.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
@@ -1053,7 +1143,11 @@
 "i": "",
 "s": ""
 },
-"IVA.PA": "Santé",
+"IVA.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "JCQ.PA": {
 "c": "France",
 "i": "Steel",
@@ -1069,7 +1163,11 @@
 "i": "",
 "s": ""
 },
-"LBIRD.PA": "Santé",
+"LBIRD.PA": {
+"c": "France",
+"i": "Diagnostics & Research",
+"s": "Healthcare"
+},
 "LI.PA": {
 "c": "?",
 "i": "",
@@ -1081,6 +1179,7 @@
 "s": ""
 },
 "LOIL.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1103,15 +1202,27 @@
 "i": "Biotechnology",
 "s": "Healthcare"
 },
-"MAU.PA": "Énergie",
+"MAU.PA": {
+"c": "France",
+"i": "Oil & Gas E&P",
+"s": "Energy"
+},
 "MC.PA": {
 "c": "France",
 "i": "Luxury Goods",
 "s": "Consumer Cyclical"
 },
-"MEDCL.PA": "Santé",
+"MEDCL.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "MEMS.PA": "Technologie",
-"MERY.PA": "Immobilier",
+"MERY.PA": {
+"c": "France",
+"i": "REIT - Retail",
+"s": "Real Estate"
+},
 "MF.PA": {
 "c": "?",
 "i": "",
@@ -1128,6 +1239,7 @@
 "s": ""
 },
 "MMT.PA": {
+"c": "France",
 "i": "Broadcasting",
 "s": "Communication Services"
 },
@@ -1142,16 +1254,22 @@
 "s": ""
 },
 "NAE.PA": {
+"c": "France",
 "i": "Oil & Gas Refining & Marketing",
 "s": "Energy"
 },
-"NANO.PA": "Santé",
+"NANO.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "NEX.PA": {
 "c": "?",
 "i": "",
 "s": ""
 },
 "NGASP.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1160,7 +1278,11 @@
 "i": "",
 "s": ""
 },
-"NRO.PA": "Technologie",
+"NRO.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "NXI.PA": {
 "c": "?",
 "i": "",
@@ -1172,6 +1294,7 @@
 "s": ""
 },
 "OPM.PA": {
+"c": "France",
 "i": "Auto Parts",
 "s": "Consumer Cyclical"
 },
@@ -1185,21 +1308,31 @@
 "i": "Telecom Services",
 "s": "Communication Services"
 },
-"OSE.PA": "Santé",
+"OSE.PA": {
+"c": "France",
+"i": "Biotechnology",
+"s": "Healthcare"
+},
 "OVH.PA": {
 "c": "?",
 "i": "",
 "s": ""
 },
 "PARRO.PA": {
+"c": "France",
 "i": "Computer Hardware",
 "s": "Technology"
 },
 "PEUG.PA": {
+"c": "France",
 "i": "Asset Management",
 "s": "Financial Services"
 },
-"PLNW.PA": "Technologie",
+"PLNW.PA": {
+"c": "France",
+"i": "Software - Application",
+"s": "Technology"
+},
 "PLX.PA": {
 "c": "?",
 "i": "",
@@ -1215,14 +1348,17 @@
 "s": "Communication Services"
 },
 "QDT.PA": {
+"c": "France",
 "i": "Software - Application",
 "s": "Technology"
 },
 "QQQ3.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "QQQS.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1232,6 +1368,7 @@
 "s": ""
 },
 "RCIDL.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1270,7 +1407,11 @@
 "i": "",
 "s": ""
 },
-"S30.PA": "Technologie",
+"S30.PA": {
+"c": "Luxembourg",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "SAF.PA": {
 "c": "France",
 "i": "Aerospace & Defense",
@@ -1286,14 +1427,23 @@
 "i": "Drug Manufacturers - General",
 "s": "Healthcare"
 },
-"SCHP.PA": "Industrie",
+"SCHP.PA": {
+"c": "France",
+"i": "Waste Management",
+"s": "Industrials"
+},
 "SCR.PA": {
 "c": "?",
 "i": "",
 "s": ""
 },
-"SESG.PA": "Communication",
+"SESG.PA": {
+"c": "Luxembourg",
+"i": "Broadcasting",
+"s": "Communication Services"
+},
 "SGGW.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1308,14 +1458,20 @@
 "s": ""
 },
 "SLGN.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "SLVRP.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
-"SMCP.PA": "Conso cyclique",
+"SMCP.PA": {
+"c": "France",
+"i": "Apparel Retail",
+"s": "Consumer Cyclical"
+},
 "SOI.PA": {
 "c": "?",
 "i": "",
@@ -1332,6 +1488,7 @@
 "s": ""
 },
 "SSLN-XPAR.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1361,6 +1518,7 @@
 "s": ""
 },
 "SWP.PA": {
+"c": "Luxembourg",
 "i": "Software - Application",
 "s": "Technology"
 },
@@ -1370,6 +1528,7 @@
 "s": ""
 },
 "TECAF.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1413,7 +1572,11 @@
 "i": "REIT - Retail",
 "s": "Real Estate"
 },
-"VAC.PA": "Conso cyclique",
+"VAC.PA": {
+"c": "France",
+"i": "Lodging",
+"s": "Consumer Cyclical"
+},
 "VCT.PA": {
 "c": "?",
 "i": "",
@@ -1430,6 +1593,7 @@
 "s": "Industrials"
 },
 "VIEBB.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -1438,7 +1602,11 @@
 "i": "",
 "s": ""
 },
-"VIRI.PA": "Énergie",
+"VIRI.PA": {
+"c": "France",
+"i": "Oil & Gas Equipment & Services",
+"s": "Energy"
+},
 "VIRP.PA": {
 "c": "?",
 "i": "",
@@ -1459,14 +1627,26 @@
 "i": "",
 "s": ""
 },
-"VLTSA.PA": "Services publics",
+"VLTSA.PA": {
+"c": "France",
+"i": "Utilities - Renewable",
+"s": "Utilities"
+},
 "VRLA.PA": {
 "c": "?",
 "i": "",
 "s": ""
 },
-"VU.PA": "Technologie",
-"WAVE.PA": "Technologie",
+"VU.PA": {
+"c": "France",
+"i": "Software - Application",
+"s": "Technology"
+},
+"WAVE.PA": {
+"c": "France",
+"i": "Information Technology Services",
+"s": "Technology"
+},
 "WEATP.PA": {
 "i": "",
 "s": ""
@@ -1476,5 +1656,9 @@
 "i": "",
 "s": ""
 },
-"XFAB.PA": "Technologie"
+"XFAB.PA": {
+"c": "Belgium",
+"i": "Semiconductors",
+"s": "Technology"
+}
 }

@@ -1028,7 +1028,11 @@
 "i": "",
 "s": ""
 },
-"IDL.PA": "Industrie",
+"IDL.PA": {
+"c": "France",
+"i": "Integrated Freight & Logistics",
+"s": "Industrials"
+},
 "INF.PA": "Technologie",
 "IPH.PA": {
 "i": "Biotechnology",
@@ -1050,7 +1054,11 @@
 "s": ""
 },
 "IVA.PA": "Santé",
-"JCQ.PA": "Matériaux",
+"JCQ.PA": {
+"c": "France",
+"i": "Steel",
+"s": "Basic Materials"
+},
 "KER.PA": {
 "c": "France",
 "i": "Luxury Goods",
@@ -1268,7 +1276,11 @@
 "i": "Aerospace & Defense",
 "s": "Industrials"
 },
-"SAMS.PA": "Industrie",
+"SAMS.PA": {
+"c": "France",
+"i": "Industrial Distribution",
+"s": "Industrials"
+},
 "SAN.PA": {
 "c": "France",
 "i": "Drug Manufacturers - General",
@@ -1323,7 +1335,11 @@
 "i": "",
 "s": ""
 },
-"STF.PA": "Industrie",
+"STF.PA": {
+"c": "France",
+"i": "Integrated Freight & Logistics",
+"s": "Industrials"
+},
 "STLAP.PA": {
 "c": "Netherlands",
 "i": "Auto Manufacturers",
@@ -1367,7 +1383,11 @@
 "i": "",
 "s": ""
 },
-"THEP.PA": "Industrie",
+"THEP.PA": {
+"c": "France",
+"i": "Industrial Distribution",
+"s": "Industrials"
+},
 "TKO.PA": {
 "c": "?",
 "i": "",

@@ -85,6 +85,8 @@ S_MIN_RUN = 3              # S : nombre minimal de bougies HA de même sens cons
 S_WICK_MAX = 0.10          # S : « sans mèche » = mèche <= 10 % de la hauteur de la bougie (haute pour S haussière, basse pour S baissière)
 AUTO_UNIVERSE = True       # True : à chaque passage, ajoute à universe.csv toutes les actions de Paris listées par Yahoo (puis filtre sur la liquidité)
 S_WICK_MIN = 2             # S : dans toute la série de bougies de même sens, au moins S_WICK_MIN sans mèche (haute pour S haussière, basse pour S baissière) ; les autres peuvent en avoir
+ATR_PERIOD = 14
+SL_ATR = 1.5               # SL de S : au moins 1,5 x l'amplitude moyenne sous le prix d'entrée (voir l'étude du profit)
 S_FIRM_BODY = 0.25         # S : les 2 bougies juste avant doivent avoir un vrai corps (>= 25 % de la hauteur)
 S_FIRM_WICK = 0.15         # S : ... et au plus 15 % de mèche du côté de la tendance (haute pour S haussière)
 S_BODY_MAX = 0.10          # S : « sans corps » = corps (|clôture - ouverture|) <= 10 % de la hauteur de la bougie HA
@@ -353,8 +355,14 @@ def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur):
     for n in MA_TP:
         ma[str(n)] = px(close[-n:].mean()) if len(close) >= n else None
     first = j if cur == 1 else None
+    atr = None
+    if nc >= ATR_PERIOD + 1:                                           # amplitude moyenne (vraies bougies clôturées), pour le stop loss large
+        hi_, lo_, cl_ = (df[k].to_numpy(dtype=float)[:nc] for k in ("High", "Low", "Close"))
+        tr = np.maximum(hi_[1:] - lo_[1:], np.maximum(np.abs(hi_[1:] - cl_[:-1]), np.abs(lo_[1:] - cl_[:-1])))
+        atr = px(tr[-ATR_PERIOD:].mean(), cl_[-1])
     return {
         "ma": ma,
+        "atr": atr,
         "tk": px(tk[-1]),
         "mm7_dn": bool(len(mm) > 1 and mm[-1] < mm[-2]),
         "low_prev": px(hal[nc - 1]),
@@ -576,7 +584,8 @@ def bar_ms(tf):
 
 def position_sl(pos, stock):
     """Stop loss d'une position (même règle que l'application). Retourne (valeur, mode effectif) ; valeur None s'il n'y a pas de SL.
-    S : la plus haute de deux valeurs : plus bas de la bougie HA précédente, bas du corps de la 1re bougie de la Fa en cours (UT inférieure).
+    S : le plus BAS de deux valeurs : plus bas de la bougie HA précédente, ou prix d'entrée (à défaut cours actuel) moins SL_ATR x amplitude moyenne
+    (ATR 14) : l'étude du profit montre que les stops trop serrés sont presque toujours touchés par le bruit.
     Fa, ou S devenue Fa depuis l'entrée : pas de SL."""
     c, tf = pos.get("c"), pos.get("tf")
     if c not in POS_ALERT_CONFIGS or tf not in stock["tf"]:
@@ -590,10 +599,10 @@ def position_sl(pos, stock):
     if c == "Fa":
         return None, "Fa"
     best = r["lv"]["low_prev"]
-    lo = lower_tf(tf)
-    lr = stock["tf"].get(lo) if lo else None
-    if lr and lr["state"] == "fa" and lr.get("lv") and lr["lv"].get("fa_body_low") is not None:
-        best = max(best, lr["lv"]["fa_body_low"])
+    atr = r["lv"].get("atr")
+    ref = pos.get("e") or stock.get("price")
+    if atr and ref:
+        best = min(best, px(ref - SL_ATR * atr, ref))
     return best, "S"
 
 

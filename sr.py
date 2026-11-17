@@ -260,7 +260,7 @@ def report(s, fa, n, fee, rng):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", type=int, default=0)
-    ap.add_argument("--fee", type=float, default=0.5)
+    ap.add_argument("--fee", type=float, default=0.398)
     ap.add_argument("--out", default="sr_report.md")
     args = ap.parse_args()
     rng = np.random.default_rng(2026)

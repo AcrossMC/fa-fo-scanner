@@ -128,7 +128,7 @@ Le workflow **Secteurs ICB** (onglet Actions) lit la classification officielle d
 Priorité des secteurs : `themes.csv`, puis ICB Euronext, puis Yahoo.
 
 ## Étude du profit
-Onglet **Actions → Étude du profit → Run workflow** (valeurs par défaut : toutes les actions françaises de l'univers, 0,5 % de frais par ordre).
+Onglet **Actions → Étude du profit → Run workflow** (valeurs par défaut : toutes les actions françaises de l'univers, 0,398 % de frais par ordre (ordre de 500 €, 1,99 €)).
 Compter 15 à 40 minutes. Le rapport s'affiche en bas de la page de l'exécution (à me coller) ; les listes détaillées des trades
 (`profit_fa_trades.csv`, `profit_s_trades.csv`) sont dans les « Artifacts » de l'exécution, pour les étapes suivantes (recherche de motifs).
 
@@ -153,3 +153,6 @@ Workflow **Supports et résistances** (valeurs par défaut, compter 20 à 60 min
 ## CAC 40 et configurations
 Workflow **CAC 40 et configurations** (valeurs par défaut, compter 15 à 40 min). Pour Fa et S (1j, hebdo) : rendement de chaque trade comparé à la variation du CAC 40 sur la même période,
 puis résultats selon la tendance du CAC à l'entrée (20 séances) et sa position par rapport à sa MM 200 jours (S comparé à des entrées au hasard dans le même contexte).
+
+## Frais par défaut
+Les études utilisent désormais 0,398 % par ordre : ordre de 500 € à 1,99 € (PEA Boursorama Découverte), soit 0,80 % l'aller-retour. Au-delà de 500 €, les frais repassent à 0,5 % ; en dessous de ~400 €, ils dépassent 0,5 %.

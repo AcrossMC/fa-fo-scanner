@@ -6,7 +6,7 @@ Règles (définies avec l'utilisateur) :
        d'entrée. Les Fa pas encore terminées sont ignorées. Aucune limite de durée.
   S haussière : entrée = clôture de la bougie S ; stop loss (plusieurs variantes) ; objectifs (TP) = les 5 niveaux les plus proches au-dessus de l'entrée
        (MM7 HA, MM20/50/100/200 de la même UT, Tenkan et MM7 baissière des UT supérieures jusqu'à 3 mois), fixés à l'entrée ; plusieurs schémas de sortie.
-  Frais : --fee par ordre (0,5 % = formule Découverte du PEA Boursorama pour ~1 000 €), donc 2 x fee par aller-retour.
+  Frais : --fee par ordre (0,398 % = 1,99 € sur un ordre de 500 €, PEA Boursorama Découverte ; 0,5 % au-delà de 500 €), donc 2 x fee par aller-retour.
   Période de contrôle : les 30 % d'entrées les plus récentes servent de test hors échantillon (les réglages ne doivent pas être choisis dessus).
 
 Limites : l'univers = actions actuellement cotées (biais du survivant) ; si SL et TP sont touchés dans la même bougie, on suppose le SL d'abord (prudent) ;
@@ -339,7 +339,7 @@ def report(fa, s, meta, fee):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", type=int, default=0, help="nombre d'actions (les plus liquides) ; 0 = toutes")
-    ap.add_argument("--fee", type=float, default=0.5, help="frais par ordre en %% (0,5 = formule Découverte du PEA Boursorama, ordres ~1 000 €)")
+    ap.add_argument("--fee", type=float, default=0.398, help="frais par ordre en %% (0,398 = 1,99 EUR sur 500 EUR)")
     ap.add_argument("--min-turnover", type=float, default=sc.MIN_TURNOVER_EUR)
     ap.add_argument("--out", default="profit_report.md")
     ap.add_argument("--no-4h", action="store_true")

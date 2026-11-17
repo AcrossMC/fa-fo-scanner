@@ -249,7 +249,7 @@ def report_b(rows, n, rng):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", type=int, default=0)
-    ap.add_argument("--fee", type=float, default=0.5)
+    ap.add_argument("--fee", type=float, default=0.398)
     ap.add_argument("--no-4h", action="store_true")
     ap.add_argument("--out", default="fa_study_report.md")
     args = ap.parse_args()

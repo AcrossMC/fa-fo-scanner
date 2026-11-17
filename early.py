@@ -146,7 +146,7 @@ def report(df, n_stocks, fee, rng):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--tickers", type=int, default=60, help="nombre d'actions (les plus liquides) ; 0 = toutes")
-    ap.add_argument("--fee", type=float, default=0.5)
+    ap.add_argument("--fee", type=float, default=0.398)
     ap.add_argument("--out", default="early_report.md")
     args = ap.parse_args()
     fee_rt = 2 * args.fee / 100.0

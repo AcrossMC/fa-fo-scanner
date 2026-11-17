@@ -1,0 +1,36 @@
+name: Coupe en Fo après N semaines (S+H4)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fee:
+        description: "Frais par ordre en % (0,398 = ordre de 500 € à 1,99 €)"
+        default: "0.398"
+
+permissions:
+  contents: read
+
+jobs:
+  focut:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Tester la coupe en Fo
+        run: python fo_cut.py --fee "${{ inputs.fee }}" --out fo_cut_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f fo_cut_report.md ]; then cat fo_cut_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fo-cut
+          path: |
+            fo_cut_report.md
+            fo_cut_trades.csv

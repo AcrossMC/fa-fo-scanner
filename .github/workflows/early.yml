@@ -1,0 +1,39 @@
+name: Entrer avant la Fa (anticipation)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Nombre d'actions (les plus liquides ; 0 = toutes) : le rejeu est long, 60 pour commencer"
+        default: "60"
+      fee:
+        description: "Frais par ordre en % (0,5 = PEA Boursorama formule Découverte)"
+        default: "0.5"
+
+permissions:
+  contents: read
+
+jobs:
+  early:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Rejouer 2 ans avec les probabilités du scanner
+        run: python early.py --tickers "${{ inputs.tickers }}" --fee "${{ inputs.fee }}" --out early_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f early_report.md ]; then cat early_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: anticipation
+          path: |
+            early_report.md
+            early_trades.csv

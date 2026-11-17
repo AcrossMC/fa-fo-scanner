@@ -44,15 +44,21 @@ jobs:
           cp docs/data.json /tmp/out/data.json
           if [ -f state.json ]; then cp state.json /tmp/out/state.json; fi
           if [ -f sectors.json ]; then cp sectors.json /tmp/out/sectors.json; fi
+          if [ -f alerts_log.json ]; then cp alerts_log.json /tmp/out/alerts_log.json; fi
+          if [ -f docs/stats.json ]; then cp docs/stats.json /tmp/out/stats.json; fi
           for i in 1 2 3; do
             git fetch -q origin main
             git reset -q --hard origin/main          # repart de la version en ligne : aucun conflit possible
             cp /tmp/out/data.json docs/data.json
             if [ -f /tmp/out/state.json ]; then cp /tmp/out/state.json state.json; fi
             if [ -f /tmp/out/sectors.json ]; then cp /tmp/out/sectors.json sectors.json; fi
+            if [ -f /tmp/out/alerts_log.json ]; then cp /tmp/out/alerts_log.json alerts_log.json; fi
+            if [ -f /tmp/out/stats.json ]; then cp /tmp/out/stats.json docs/stats.json; fi
             git add docs/data.json
             if [ -f state.json ]; then git add state.json; fi
             if [ -f sectors.json ]; then git add sectors.json; fi
+            if [ -f alerts_log.json ]; then git add alerts_log.json; fi
+            if [ -f docs/stats.json ]; then git add docs/stats.json; fi
             if git diff --cached --quiet; then break; fi
             git commit -q -m "scan $(date -u +%Y-%m-%d_%H:%M)"
             if git push -q; then break; fi

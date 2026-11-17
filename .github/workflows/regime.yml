@@ -1,0 +1,39 @@
+name: S hebdo et état du marché
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Nombre d'actions (les plus liquides ; 0 = toutes les actions françaises de l'univers)"
+        default: "0"
+      fee:
+        description: "Frais par ordre en % (0,5 = PEA Boursorama formule Découverte, ordres d'environ 1 000 €)"
+        default: "0.5"
+
+permissions:
+  contents: read
+
+jobs:
+  regime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Tester les hypothèses de marché
+        run: python regime.py --tickers "${{ inputs.tickers }}" --fee "${{ inputs.fee }}" --out regime_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f regime_report.md ]; then cat regime_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regime
+          path: |
+            regime_report.md
+            regime_trades.csv

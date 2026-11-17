@@ -269,13 +269,32 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     }).join("") + `</div>`;
   }
   function renderOwned() {
-    if (!pos.length) {
-      list.innerHTML = `<div class="empty">Aucune action dans Mon PF.<br>Dans le Scanner, touchez une action puis choisissez S, Fa ou Autre.</div>`;
+    const q = query.trim().toLowerCase();
+    if (!pos.length && !q) {
+      list.innerHTML = `<div class="empty">Aucune action dans Mon PF.<br>Cherchez une action ci-dessus pour l'ajouter, ou touchez-la dans le Scanner.</div>`;
       return;
     }
-    const q = query.trim().toLowerCase();
     const shown = q ? pos.filter((p) => p.t.toLowerCase().includes(q) || ((data.stocks[p.t] || {}).name || "").toLowerCase().includes(q)) : pos;
-    if (!shown.length) { list.innerHTML = `<div class="empty">Aucune action de Mon PF ne correspond à « ${esc(query.trim())} ».</div>`; return; }
+    // Recherche dans TOUTES les actions suivies (pas seulement celles du PF) pour les ajouter facilement
+    let addHtml = "";
+    if (q) {
+      const held = new Set(pos.map((p) => p.t));
+      const hits = Object.entries(data.stocks)
+        .filter(([t, s]) => !held.has(t) && (t.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)))
+        .sort((x, y) => x[0].localeCompare(y[0])).slice(0, 25);
+      if (hits.length) {
+        addHtml += `<h3 class="grp">Ajouter à Mon PF</h3>` + hits.map(([t, s]) => `<button class="card" data-t="${esc(t)}">
+          <div class="row"><span class="left"><span class="star">☆</span><span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
+          <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
+          <div class="secline"><span class="muted">${esc(s.sector || "")} · touchez pour choisir S, Fa ou Autre</span></div></button>`).join("");
+      }
+      const cand = candidateTicker(query);
+      if (cand && !data.stocks[cand] && !held.has(cand)) {
+        addHtml += `<div class="card addcard"><div><b>${esc(cand)}</b> n'est pas dans la liste suivie.</div>
+          <button class="posbtn" data-add="${esc(cand)}">☆ J'entre sur cette action (l'ajouter aux possédées)</button></div>`;
+      }
+    }
+    if (!shown.length) { list.innerHTML = addHtml || `<div class="empty">Aucune action ne correspond à « ${esc(query.trim())} ».</div>`; return; }
     const items = shown.map((p) => {
       const s = data.stocks[p.t];
       const pl = s ? plan(p, s) : null;
@@ -301,7 +320,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
         <div class="secline"><span class="secbadge modebadge">${esc(modeLabel(p, pl))}</span><span class="muted">${esc(s.sector || "")}${pnl}</span></div>${(s.themes || []).length ? `<div class="secline">${s.themes.map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>` : ""}
         ${body}</button>`;
     }
-    list.innerHTML = html;
+    list.innerHTML = html + addHtml;
   }
 
   function renderHead() {

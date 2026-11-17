@@ -156,3 +156,8 @@ puis résultats selon la tendance du CAC à l'entrée (20 séances) et sa positi
 
 ## Frais par défaut
 Les études utilisent désormais 0,398 % par ordre : ordre de 500 € à 1,99 € (PEA Boursorama Découverte), soit 0,80 % l'aller-retour. Au-delà de 500 €, les frais repassent à 0,5 % ; en dessous de ~400 €, ils dépassent 0,5 %.
+
+## Toutes les études en un clic
+Workflow **Toutes les études (rapport unique)** : lance en parallèle profit, robustesse, Fa/TP, S hebdo + marché, supports/résistances, CAC 40 et anticipation (2 ans, 60 actions),
+puis assemble les 7 rapports en un seul, affiché en bas de la page de l'exécution (job « synthese ») et téléchargeable dans l'artifact `tous-les-rapports`. Compter 1 à 2 heures.
+Si une étude échoue, les autres continuent et le rapport l'indique.

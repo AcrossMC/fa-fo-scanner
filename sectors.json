@@ -41,6 +41,7 @@
 "s": ""
 },
 "74SW.PA": {
+"c": "United States",
 "i": "Software - Application",
 "s": "Technology"
 },
@@ -66,6 +67,7 @@
 "s": ""
 },
 "AB.PA": {
+"c": "France",
 "i": "Drug Manufacturers - Specialty & Generic",
 "s": "Healthcare"
 },
@@ -75,10 +77,12 @@
 "s": ""
 },
 "ABNX.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "ABVX.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
@@ -229,6 +233,7 @@
 "s": ""
 },
 "ADOC.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
@@ -263,6 +268,7 @@
 "s": "Technology"
 },
 "ALAGO.PA": {
+"c": "France",
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
@@ -272,10 +278,12 @@
 "s": "Technology"
 },
 "ALBPS.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "ALCJ.PA": {
+"c": "France",
 "i": "Medical Instruments & Supplies",
 "s": "Healthcare"
 },
@@ -285,30 +293,37 @@
 "s": "Healthcare"
 },
 "ALCPB.PA": {
+"c": "France",
 "i": "Software - Application",
 "s": "Technology"
 },
 "ALDBT.PA": {
+"c": "France",
 "i": "Specialty Industrial Machinery",
 "s": "Industrials"
 },
 "ALDLT.PA": {
+"c": "France",
 "i": "Footwear & Accessories",
 "s": "Consumer Cyclical"
 },
 "ALDRV.PA": {
+"c": "France",
 "i": "Computer Hardware",
 "s": "Technology"
 },
 "ALESE.PA": {
+"c": "France",
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
 "ALGIL.PA": {
+"c": "France",
 "i": "Packaging & Containers",
 "s": "Consumer Cyclical"
 },
 "ALHAF.PA": {
+"c": "France",
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
@@ -318,10 +333,12 @@
 "s": "Consumer Cyclical"
 },
 "ALHG.PA": {
+"c": "France",
 "i": "Specialty Business Services",
 "s": "Industrials"
 },
 "ALKAL.PA": {
+"c": "France",
 "i": "Semiconductors",
 "s": "Technology"
 },
@@ -331,10 +348,12 @@
 "s": "Technology"
 },
 "ALMDT.PA": {
+"c": "France",
 "i": "Medical Devices",
 "s": "Healthcare"
 },
 "ALMIB.PA": {
+"c": "France",
 "i": "Agricultural Inputs",
 "s": "Basic Materials"
 },
@@ -348,34 +367,42 @@
 "s": "Industrials"
 },
 "ALPER.PA": {
+"c": "France",
 "i": "Electrical Equipment & Parts",
 "s": "Industrials"
 },
 "ALPM.PA": {
+"c": "France",
 "i": "Specialty Industrial Machinery",
 "s": "Industrials"
 },
 "ALPUL.PA": {
+"c": "France",
 "i": "Electronic Gaming & Multimedia",
 "s": "Communication Services"
 },
 "ALRIB.PA": {
+"c": "France",
 "i": "Semiconductor Equipment & Materials",
 "s": "Technology"
 },
 "ALROC.PA": {
+"c": "France",
 "i": "Electronic Components",
 "s": "Technology"
 },
 "ALSEM.PA": {
+"c": "France",
 "i": "Semiconductor Equipment & Materials",
 "s": "Technology"
 },
 "ALSEN.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "ALSTI.PA": {
+"c": "France",
 "i": "Specialty Industrial Machinery",
 "s": "Industrials"
 },
@@ -385,30 +412,37 @@
 "s": "Real Estate"
 },
 "ALTAO.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "ALTD.PA": {
+"c": "France",
 "i": "Aerospace & Defense",
 "s": "Industrials"
 },
 "ALTHE.PA": {
+"c": "France",
 "i": "Medical Devices",
 "s": "Healthcare"
 },
 "ALTHX.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "ALTME.PA": {
+"c": "Germany",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
 "ALVDM.PA": {
+"c": "France",
 "i": "Travel Services",
 "s": "Consumer Cyclical"
 },
 "ALVIO.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
@@ -591,6 +625,7 @@
 "s": ""
 },
 "CAF.PA": {
+"c": "France",
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
@@ -613,6 +648,7 @@
 "s": "Real Estate"
 },
 "CAT31.PA": {
+"c": "France",
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
@@ -622,6 +658,7 @@
 "s": ""
 },
 "CDI.PA": {
+"c": "France",
 "i": "Luxury Goods",
 "s": "Consumer Cyclical"
 },
@@ -635,6 +672,7 @@
 "s": ""
 },
 "CNDF.PA": {
+"c": "France",
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
@@ -649,10 +687,12 @@
 "s": "Financial Services"
 },
 "COPAP.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
 "COTY.PA": {
+"c": "United States",
 "i": "Household & Personal Products",
 "s": "Consumer Defensive"
 },
@@ -662,10 +702,12 @@
 "s": "Real Estate"
 },
 "CRBP2.PA": {
+"c": "France",
 "i": "Banks - Regional",
 "s": "Financial Services"
 },
 "CRUDP.PA": {
+"c": "?",
 "i": "",
 "s": ""
 },
@@ -675,6 +717,7 @@
 "s": "Financial Services"
 },
 "CVX.PA": {
+"c": "France",
 "i": "Medical Devices",
 "s": "Healthcare"
 },
@@ -714,6 +757,7 @@
 "s": "Healthcare"
 },
 "EC.PA": {
+"c": "Gabon",
 "i": "Oil & Gas E&P",
 "s": "Energy"
 },
@@ -741,6 +785,7 @@
 "s": "Healthcare"
 },
 "ELEC.PA": {
+"c": "France",
 "i": "Utilities - Renewable",
 "s": "Utilities"
 },
@@ -775,6 +820,7 @@
 "s": "Financial Services"
 },
 "EQS.PA": {
+"c": "France",
 "i": "Health Information Services",
 "s": "Healthcare"
 },
@@ -1269,6 +1315,7 @@
 "s": ""
 },
 "MAAT.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },
@@ -1409,6 +1456,7 @@
 "s": ""
 },
 "POXEL.PA": {
+"c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
 },

@@ -1,4 +1,4 @@
-name: Taille de position S+H4 (5 000 €, 8 lignes)
+name: Nombre de lignes, hasard et CAC 40 (S+H4)
 
 on:
   workflow_dispatch:

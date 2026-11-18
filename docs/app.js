@@ -120,14 +120,20 @@
     if (sl && price <= sl.v) reasons.push("Stop loss atteint : le cours est sous le SL");
     if (mode === "Fa" && r.state === "fo") reasons.push(`Fo en ${TF_LAB[p.tf]} : la Fa est terminée`);
     if (passed.length) reasons.push("TP franchi : " + passed.map((c) => c.label).join(", "));
-    return { mode, converted, sl, tps, passed, reasons, price };
+    let far = null;                                                    // S hebdo : objectif éloigné (plus haut 26-52 sem.), étude sur 405 actions
+    if (mode === "S" && p.tf === "1w" && r.lv.don && r.lv.don.length) {
+      const d = r.lv.don.filter((v) => v > price);
+      const v = d.length > 1 ? d[1] : d[0];
+      if (v) far = { v, label: "Objectif éloigné : plus haut 26-52 semaines (étude)", h4: !!r.lv.h4, dd: r.lv.dd52 };
+    }
+    return { mode, converted, sl, tps, passed, reasons, price, far };
   }
   const modeLabel = (p, pl) => (p.c === "S" || p.c === "Fa" ? (pl && pl.converted ? "S → Fa" : p.c) + " · " + TF_LAB[p.tf] : "Autre");
 const GROUPS = ["1h · 4h · 1j", "1 semaine", "1 mois", "Autres entrées"];
 const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.tf === "1mo" ? 2 : 0);
 
   // ===================== Scanner : « en cours de validation », classé par volume d'achat du secteur =====================
-  const visibleTf = () => (data && data.meta.visible_tf) || ["4h", "1d", "1w", "1mo"];
+  const visibleTf = () => (data && data.meta.visible_tf) || ["1w", "1mo"];
   const thr = () => (data.meta.prob_min ?? 0.3);
   // Dernières bougies HA clôturées (🔴 rouge / 🟢 verte / ⚪ sans corps), pour contrôler d'un coup d'œil la série qui précède un S
   function histRow(h, want) {
@@ -211,7 +217,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     return `<button class="card ${st === "s" ? "sup" : "pending"}${isHeld(t) ? " held" : ""}" data-t="${esc(t)}">
       <div class="row"><span class="left">${isHeld(t) ? '<span class="star" aria-label="En position">⭐</span>' : ""}<span class="tick">${esc(short(t))}</span><span class="name">${esc(s.name)}</span></span>
       <span class="price">${fmtPrice(s.price)}<span class="chg ${s.chg >= 0 ? "up" : "down"}">${fmtChg(s.chg)}</span></span></div>
-      <div class="secline"><span class="secbadge">${esc(row.sec)}</span>${(s.themes || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>
+      <div class="secline"><span class="secbadge">${esc(row.sec)}</span>${st === "s" && r.lv && r.lv.h4 ? `<span class="tag h4">&gt; 30 % sous le plus haut 52 sem.</span>` : ""}${(s.themes || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>
       <div class="pline"><span class="pbig">${st === "fa" ? dot("fa") : sq("up")}<b>${pct(p)}</b></span>
         <span class="pbar"><i class="${p >= (data.meta.prob_high ?? 0.6) ? "fa" : "mid"}" style="width:${Math.max(p * 100, 2)}%"></i></span>
         ${over ? '<span class="over">déjà au-dessus</span>' : ""}</div>
@@ -354,6 +360,10 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
       let info = "";
       if (r.state !== "none") info += `<div class="since">${r.state === "fa" ? "Fa" : "Fo"} depuis ${esc(fmtSince(r.since, k))} · ${r.bars} bougie${r.bars > 1 ? "s" : ""}</div>`;
       if (hasS) info += `<div class="since">${sLabel(r.s)} : ${sWhat(r.s)}</div>`;
+      if (k === "1w" && r.lv && r.lv.dd52 != null && (hasS || (r.forming && r.p_s_up > 0))) {
+        const dn = (r.lv.don || []).filter((v) => v > s.price), fv = dn.length > 1 ? dn[1] : dn[0];
+        info += `<div class="since ${r.lv.h4 ? "up" : "muted"}">${r.lv.h4 ? "✓" : "✗"} Action à ${Math.abs(Math.round(r.lv.dd52 * 100))} % sous son plus haut 52 sem. (filtre : plus de 30 %)${fv ? ` · objectif éloigné ${fmtPrice(fv)}` : ""} ${helpBtn(STUDY_NOTE)}</div>`;
+      }
       let probs;
       if (r.forming && r.p_fa != null) {
         probs = `<div class="probs"><div class="ptitle">À la clôture de la bougie en cours</div>`
@@ -452,6 +462,7 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
         h += `<h3>Stop loss ${helpBtn(help)}</h3><div class="since">Aucun stop loss.</div>`
           + `<div class="since">État ${TF_LAB[p.tf]} : <span class="pill ${s.tf[p.tf].state}">${dot(s.tf[p.tf].state)}${s.tf[p.tf].state === "fa" ? "Fa validé" : s.tf[p.tf].state === "fo" ? "Fo" : "Fa non validé"}</span></div>`;
       }
+      if (pl.far) h += farBlock(pl.far, s.price);
       h += `<h3>Take profit (du plus petit au plus grand)</h3>`;
       if (pl.passed.length) h += `<div class="since muted">Déjà franchis depuis l'entrée : ${esc(pl.passed.map((c) => c.label + " " + fmtPrice(c.v)).join(", "))}</div>`;
       h += pl.tps.length
@@ -461,6 +472,9 @@ const groupOf = (p) => (p.c !== "S" && p.c !== "Fa" ? 3 : p.tf === "1w" ? 1 : p.
     h += `</div>` + posActions(key) + `<div class="tf-table">${tfRows(s, true)}</div>` + chartLinks(p.t, s.name, p.tf || tf);
     sheet.innerHTML = h; showSheet();
   }
+  const STUDY_NOTE = "Étude (405 actions de Paris et d'Europe, 1989-2026, frais d'un ordre de 500 € inclus) : S hebdo sur une action à plus de 30 % sous son plus haut 52 semaines, SL 1,5 ATR, sortie au plus haut 26-52 semaines : environ +9 % net par trade en moyenne contre +3 % pour des entrées au hasard, mais environ 7 trades sur 10 sont stoppés et la médiane est négative. Les gains viennent de rares trades très gagnants : garder le stop et l'objectif, et miser une taille qui supporte une série de stops (risque de 0,5 à 1 % du portefeuille par ligne).";
+  const farBlock = (f, price) => `<h3>Objectif éloigné (étude) ${helpBtn(STUDY_NOTE)}</h3><div class="lvrow"><span class="lv-v">${fmtPrice(f.v)}</span><span class="muted">${fmtVs(f.v, price)}</span></div><div class="since">${esc(f.label)}</div>`
+    + (f.h4 ? `<div class="since up">✓ Action à ${Math.abs(Math.round((f.dd || 0) * 100))} % sous son plus haut 52 sem. : cas étudié le plus favorable.</div>` : `<div class="since muted">Action à moins de 30 % sous son plus haut 52 sem. : les S hebdo sans ce filtre ont peu battu le hasard.</div>`);
   const helpBtn = (txt) => `<span class="helpwrap"><button class="qmark" data-help type="button" aria-label="Explication">?</button><span class="bubble" role="note">${esc(txt)}</span></span>`;
   const posActions = (key) => `<div class="posacts"><button class="posbtn" data-edit="${esc(key)}">Modifier le prix d'entrée</button><button class="posbtn on" data-sell="${esc(key)}">J'ai vendu : retirer de Mon PF</button></div>`;
 

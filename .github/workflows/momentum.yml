@@ -1,0 +1,35 @@
+name: Momentum relatif entre indices (proxys d'ETF PEA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fee:
+        description: "Frais par ordre en % (0,25 = ordre de 2 000 à 5 000 € chez un courtier à frais réduits)"
+        default: "0.25"
+
+permissions:
+  contents: read
+
+jobs:
+  momentum:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Tester le momentum relatif
+        run: python momentum.py --fee "${{ inputs.fee }}" --out momentum_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f momentum_report.md ]; then cat momentum_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: momentum
+          path: |
+            momentum_report.md

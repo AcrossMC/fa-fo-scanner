@@ -46,27 +46,40 @@ def collect(args, rng, universe=None, now=None):
             continue
         S = sr.sr_prep(A, "1w")
         c, h = A["c"], A["h"]
-        for k in np.flatnonzero(A["up"]):
-            if k < 105 or k + 1 >= A["n"] or c[k] / h[k - 52:k + 1].max() - 1 > -args.h4:
-                continue
+        def trade_row(k, kind):
             entry = c[k]
             L = sr.levels_at(A, S, "1w", k, entry)["Donchian"]
             base, atr = A["hal"][k - 1], A["atr"][k]
             if len(L) < 2 or not np.isfinite(atr):
-                continue
+                return None
             sl = min(base, entry - 1.5 * atr)
             if sl >= entry * 0.9995:
-                continue
+                return None
             legs = [{"frac": 1.0, "sl": sl, "tp": L[1]}]
-            row = {"ticker": t, "market": eu.market_of(t), "time": A["ends"][k], "risk": float((entry - sl) / entry)}
+            row = {"kind": kind, "ticker": t, "market": eu.market_of(t), "time": A["ends"][k], "risk": float((entry - sl) / entry)}
             for name, fc in VARS.items():
                 r = trade.manage(A, k, entry, legs, focut=fc)
                 if r is not None:
                     row[name] = r[0] - (1 + r[1]) * fee
                     row["bars:" + name] = r[2] - k
                     row["cut:" + name] = r[3] == "FO"
-            if "Référence" in row:
-                rows.append(row)
+            return row if "Référence" in row else None
+
+        rand = getattr(args, "rand", 0)
+        years, by = robust.random_year_index(A) if rand else (None, {})
+        for k in np.flatnonzero(A["up"]):
+            if k < 105 or k + 1 >= A["n"] or c[k] / h[k - 52:k + 1].max() - 1 > -args.h4:
+                continue
+            row = trade_row(k, "S")
+            if row is None:
+                continue
+            rows.append(row)
+            if rand:                                                   # hasard : entrées au sort, même action, même année, mêmes règles de gestion
+                cand = [kk for kk in by.get(A["ends"][k].year, []) if kk >= 105 and kk + 1 < A["n"]]
+                for kk in (rng.choice(cand, size=min(rand, len(cand)), replace=False) if cand else []):
+                    r2 = trade_row(kk, "H")
+                    if r2 is not None:
+                        rows.append(r2)
         if i % 25 == 0:
             print(f"  {i}/{len(ranked)} actions, {len(rows)} trades, {int(time.time() - t0)} s", flush=True)
     return pd.DataFrame(rows), len(ranked)
@@ -74,6 +87,7 @@ def collect(args, rng, universe=None, now=None):
 
 def report(df, n, fee, rng):
     pct = robust.pct
+    df = df[df["kind"] == "S"] if "kind" in df else df
     L = [f"# Couper un S+H4 hebdo en Fo après N semaines — {len(df)} trades, {n} actions, frais {fee * 100:.2f} % par ordre", "",
          "Règle fixée avant les résultats (voir l'en-tête de `fo_cut.py`). **Coupés** = part des trades vendus par cette règle. **Rendement / semaine** = somme des rendements nets / somme des durées (capital immobilisé).", "",
          "| variante | trades | coupés | moyenne nette | médiane | durée moyenne (sem.) | rendement / semaine | écart apprentissage [IC 99 %] | écart test [IC 95 %] | verdict |", "|---|---|---|---|---|---|---|---|---|---|"]

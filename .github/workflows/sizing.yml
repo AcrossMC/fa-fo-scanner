@@ -1,0 +1,36 @@
+name: Taille de position S+H4 (5 000 €, 8 lignes)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fee:
+        description: "Frais par ordre en % (0,398 = ordre de 500 € à 1,99 €)"
+        default: "0.398"
+
+permissions:
+  contents: read
+
+jobs:
+  sizing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Calculer la taille de position
+        run: python sizing.py --fee "${{ inputs.fee }}" --out sizing_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f sizing_report.md ]; then cat sizing_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sizing
+          path: |
+            sizing_report.md
+            sizing_trades.csv

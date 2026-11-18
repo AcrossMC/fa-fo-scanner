@@ -1,0 +1,36 @@
+name: S hebdo sur indices (proxys d'ETF PEA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      fee:
+        description: "Frais par ordre en % (0,25 = ordre de 2 000 à 5 000 € chez un courtier à frais réduits)"
+        default: "0.25"
+
+permissions:
+  contents: read
+
+jobs:
+  etf-s:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Tester S hebdo sur indices
+        run: python etf_s.py --fee "${{ inputs.fee }}" --out etf_s_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f etf_s_report.md ]; then cat etf_s_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etf-s
+          path: |
+            etf_s_report.md
+            etf_s_trades.csv

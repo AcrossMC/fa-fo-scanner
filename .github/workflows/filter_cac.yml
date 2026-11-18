@@ -1,0 +1,35 @@
+name: Filtre CAC 40 sur S+H4 hebdo
+
+on:
+  workflow_dispatch:
+    inputs:
+      fee:
+        description: "Frais par ordre en % (0,398 = ordre de 500 € à 1,99 €)"
+        default: "0.398"
+
+permissions:
+  contents: read
+
+jobs:
+  filter-cac:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Tester le filtre CAC 40
+        run: python filter_cac.py --fee "${{ inputs.fee }}" --out filter_cac_report.md
+      - name: Afficher le rapport sur la page de l'exécution
+        if: always()
+        run: |
+          if [ -f filter_cac_report.md ]; then cat filter_cac_report.md >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: filter-cac
+          path: |
+            filter_cac_report.md

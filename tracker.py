@@ -52,6 +52,8 @@ def update_log(log, events, sent, now):
         en = log.get(k)
         if en is None:
             en = log[k] = {"p0": e["p"], "pm": e["p"], "d": day}
+        if e.get("h4"):
+            en["h4"] = 1                                   # S hebdo sur une action à plus de 30 % sous son plus haut 52 sem. (suivi réel du filtre étudié)
         en["pm"] = max(en["pm"], e["p"])
         if "pa" not in en and e["p"] >= sc.PROB_HIGH:
             en["pa"] = e["p"]

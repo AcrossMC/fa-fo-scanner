@@ -58,7 +58,7 @@ def collect(args, rng, universe=None, now=None):
             if sl >= entry * 0.9995:
                 continue
             legs = [{"frac": 1.0, "sl": sl, "tp": L[1]}]
-            row = {"ticker": t, "market": eu.market_of(t), "time": A["ends"][k]}
+            row = {"ticker": t, "market": eu.market_of(t), "time": A["ends"][k], "risk": float((entry - sl) / entry)}
             for name, fc in VARS.items():
                 r = trade.manage(A, k, entry, legs, focut=fc)
                 if r is not None:

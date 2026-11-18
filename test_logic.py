@@ -1,0 +1,778 @@
+"""
+Tests hors ligne (données synthétiques) : python tests/test_logic.py
+Vérifie les calculs, le calendrier, les états, les probabilités, les alertes et le fichier data.json.
+"""
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import scanner as sc  # noqa: E402
+
+P = sc.PARIS
+
+
+# ----------------------------- générateurs synthétiques -----------------------------
+def walk(n, seed, drift=0.0, vol=0.01, start=100.0):
+    rng = np.random.default_rng(seed)
+    return start * np.exp(np.cumsum(rng.normal(drift, vol, n)))
+
+
+def ohlc_from_close(close, seed):
+    rng = np.random.default_rng(seed + 999)
+    o = np.concatenate([[close[0]], close[:-1]])
+    spread = np.abs(rng.normal(0, 0.004, len(close))) * close
+    h = np.maximum(o, close) + spread
+    l = np.minimum(o, close) - spread
+    return o, h, l, close
+
+
+def make_daily(now, seed, drift=0.0, vol=0.012, volume=1e6, n=1250):
+    days = pd.bdate_range(end=now.tz_localize(None).normalize(), periods=n)
+    idx = days.tz_localize(P)
+    o, h, l, c = ohlc_from_close(walk(n, seed, drift, vol), seed)
+    return pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": np.full(n, volume)}, index=idx)
+
+
+def make_hourly(now_eff, seed, drift=0.0, vol=0.004, volume=1e5):
+    days = pd.bdate_range(end=now_eff.tz_localize(None).normalize(), periods=62)
+    stamps = [d.tz_localize(P) + pd.Timedelta(hours=h) for d in days for h in range(9, 18)]
+    stamps = [t for t in stamps if t <= now_eff]
+    n = len(stamps)
+    o, h, l, c = ohlc_from_close(walk(n, seed, drift, vol), seed)
+    return pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": np.full(n, volume)}, index=pd.DatetimeIndex(stamps))
+
+
+def fake_fetch_factory(now, specs):
+    """specs: {ticker: (seed, drift, volume)}"""
+    now_eff = now - pd.Timedelta(minutes=sc.DATA_DELAY_MIN)
+
+    def fetch(tickers, period, interval):
+        out = {}
+        for t in tickers:
+            if t not in specs:
+                continue
+            seed, drift, vol = specs[t]
+            out[t] = make_daily(now, seed, drift, volume=vol) if interval == "1d" else make_hourly(now_eff, seed, drift, volume=vol / 10)
+        return out
+    return fetch
+
+
+# ------------------------------------- tests -------------------------------------
+def test_heikin_ashi():
+    o = np.array([10., 11, 12, 11]); h = np.array([12., 13, 14, 12]); l = np.array([9., 10, 11, 9]); c = np.array([11., 12, 13, 10])
+    hao, hah, hal, hac = sc.heikin_ashi(o, h, l, c)
+    assert np.isclose(hac[1], (11 + 13 + 10 + 12) / 4)
+    assert np.isclose(hao[0], 10.5) and np.isclose(hao[1], (hao[0] + hac[0]) / 2)
+    assert (hah >= np.maximum(hao, hac)).all() and (hal <= np.minimum(hao, hac)).all()
+    print("OK heikin_ashi")
+
+
+def test_body_modes():
+    mm, tk = np.array([11.0] * 4), np.array([11.5] * 4)
+    hao = np.array([10.0, 11.8, 9.0, 11.2]); hac = np.array([12.0, 12.5, 10.5, 11.4])   # corps : 10-12 | 11.8-12.5 | 9-10.5 | 11.2-11.4
+    old, old_slope = sc.BODY_MODE, sc.MA_SLOPE
+    sc.MA_SLOPE = False                                                  # la pente de la MM7 est testée dans test_slope
+    sc.BODY_MODE = "edge"
+    assert sc.classify(hao, hac, mm, tk).tolist() == [1, 1, -1, 0]     # 0 : corps vert qui couvre toute la zone => la couleur tranche (Fa)
+    sc.BODY_MODE = "full"
+    assert sc.classify(hao, hac, mm, tk).tolist() == [0, 1, -1, 0]
+    hao2 = np.array([11.2, 10.8]); hac2 = np.array([12.0, 11.3])
+    sc.BODY_MODE = "edge"
+    assert sc.classify(hao2, hac2, mm[:2], tk[:2]).tolist() == [1, -1]  # haut 12 > 11.5 => Fa ; bas 10.8 < 11 => Fo
+    sc.BODY_MODE = "full"
+    assert sc.classify(hao2, hac2, mm[:2], tk[:2]).tolist() == [0, 0]   # mode strict : le corps entier doit être au-delà
+    sc.BODY_MODE, sc.MA_SLOPE = old, old_slope
+    print("OK body_modes")
+
+
+def test_slope():
+    tk = np.array([11.5] * 4)
+    hao = np.array([11.8, 11.8, 10.0, 10.0]); hac = np.array([12.5, 12.5, 10.5, 10.5])     # 0-1 : corps au-dessus des lignes | 2-3 : en dessous
+    mm_up = np.array([10.8, 11.0, 11.2, 11.3]); mm_dn = np.array([11.9, 11.7, 11.4, 11.2])
+    assert sc.MA_SLOPE
+    # corps haut > MM7 et Tenkan : Fa seulement si la MM7 monte ; bas du corps < MM7 et Tenkan : Fo seulement si elle descend
+    assert sc.classify(hao, hac, mm_up, tk).tolist() == [0, 1, 0, 0]                       # [0] : pas de bougie précédente ; [2],[3] : MM7 montante => pas de Fo
+    assert sc.classify(hao, hac, mm_dn, tk).tolist() == [0, 0, -1, -1]                     # MM7 descendante : pas de Fa
+    assert sc.classify(hao, hac, np.array([11.0] * 4), tk).tolist() == [0, 0, 0, 0]       # MM7 plate : ni l'un ni l'autre
+    sc.MA_SLOPE = False
+    sc.MA_SLOPE = True
+    print("OK slope")
+
+
+def test_persistence():
+    st = sc.persist(np.array([0, 1, 0, 0, -1, 0, 1, 0]))
+    assert st.tolist() == [0, 1, 1, 1, -1, -1, 1, 1]               # Fa dure jusqu'au Fo, Fo jusqu'au Fa suivant
+    print("OK persistence")
+
+
+def test_lines_and_classify():
+    n = 40
+    c = np.linspace(100, 140, n); o = c - 1; h = c + 0.5; l = o - 0.5
+    hao, hah, hal, hac = sc.heikin_ashi(o, h, l, c)
+    mm, tk = sc.lines(hah, hal, hac)
+    assert np.isclose(mm[-1], hac[-7:].mean())
+    assert np.isclose(tk[-1], (hah[-9:].max() + hal[-9:].min()) / 2)
+    st = sc.classify(hao, hac, mm, tk)
+    assert st[-1] == 1 and st[:8].tolist() == [0] * 8                  # tendance haussière => Fa, pas de signal sans historique
+    st_dn = sc.classify(*(lambda a: (a[0], a[3], *sc.lines(a[1], a[2], a[3])))(sc.heikin_ashi(*(x[::-1].copy() for x in (o, h, l, c)))))
+    assert st_dn[-1] == -1                                              # tendance baissière => Fo
+    print("OK lines_and_classify")
+
+
+def ts(s):
+    return pd.Timestamp(s, tz=P)
+
+
+def test_calendar():
+    assert sc.bar_end(ts("2026-11-11 10:00"), "1h") == ts("2026-11-11 11:00")
+    assert sc.bar_end(ts("2026-11-11 17:00"), "1h") == ts("2026-11-11 17:35")
+    assert sc.bar_end(ts("2026-11-11 09:00"), "4h") == ts("2026-11-11 13:00")
+    assert sc.bar_end(ts("2026-11-11 13:00"), "4h") == ts("2026-11-11 17:35")
+    assert sc.bar_end(ts("2026-11-11 00:00"), "1d") == ts("2026-11-11 17:35")
+    assert sc.bar_end(ts("2026-11-09 00:00"), "1w") == ts("2026-11-13 17:35")
+    assert sc.bar_end(ts("2026-11-01 00:00"), "1mo") == ts("2026-11-30 17:35")
+    assert sc.bar_end(ts("2026-10-01 00:00"), "1mo") == ts("2026-10-30 17:35") or sc.bar_end(ts("2026-10-01 00:00"), "1mo") == ts("2026-10-30 17:35")
+    # fraction restante
+    assert np.isclose(sc.remaining_fraction(ts("2026-11-11 10:00"), "1h", ts("2026-11-11 10:30")), 0.5)
+    assert np.isclose(sc.remaining_fraction(ts("2026-11-11 00:00"), "1d", ts("2026-11-11 09:00")), 1.0)
+    assert sc.remaining_fraction(ts("2026-11-11 00:00"), "1d", ts("2026-11-11 17:35")) == 0.0
+    w = sc.remaining_fraction(ts("2026-11-09 00:00"), "1w", ts("2026-11-11 13:00"))     # mercredi 13h : un peu plus de la moitié écoulée
+    assert 0.40 < w < 0.55, w
+    m = sc.remaining_fraction(ts("2026-11-01 00:00"), "1mo", ts("2026-11-11 13:00"))
+    assert 0.5 < m < 0.7, m
+    print("OK calendar")
+
+
+def test_aggregate():
+    now = ts("2026-11-11 15:30")
+    h = make_hourly(now, 1)
+    a = sc.aggregate(h, "4h")
+    assert set(a.index.hour) <= {9, 13}
+    day = h[h.index.normalize() == ts("2026-11-10 00:00")]
+    b = a.loc[ts("2026-11-10 13:00")]
+    assert np.isclose(b["High"], day[day.index.hour >= 13]["High"].max())          # la bougie de 17h appartient bien au bloc 13h
+    assert np.isclose(b["Volume"], day[day.index.hour >= 13]["Volume"].sum())
+    d = make_daily(ts("2026-11-11 12:00"), 2)
+    w = sc.aggregate(d, "1w"); m = sc.aggregate(d, "1mo")
+    assert (w.index.weekday == 0).all() and (m.index.day == 1).all()
+    print("OK aggregate")
+
+
+def test_forming_and_closed():
+    # Série haussière clôturée puis bougie en formation : on vérifie closed vs forming et les probabilités
+    now = ts("2026-11-11 19:00")                       # marché fermé
+    d = make_daily(now, 3, drift=0.004, vol=0.004)
+    rng = np.random.default_rng(0)
+    res = sc.analyze_tf(d, "1d", now - pd.Timedelta(minutes=15), rng)
+    assert res["forming"] is False and res["p_fa"] is None
+    res_mid = sc.analyze_tf(d, "1d", ts("2026-11-11 12:00"), rng)       # même série, mais la dernière bougie est « en formation »
+    assert res_mid["forming"] is True and 0.0 <= res_mid["p_fa"] <= 1.0
+
+    # Forte hausse : probabilité de Fa élevée ; forte baisse : probabilité de Fo élevée
+    up = make_daily(ts("2026-11-11 12:00"), 4, drift=0.006, vol=0.002)
+    dn = make_daily(ts("2026-11-11 12:00"), 5, drift=-0.006, vol=0.002)
+    r_up = sc.analyze_tf(up, "1d", ts("2026-11-11 12:00"), rng)
+    r_dn = sc.analyze_tf(dn, "1d", ts("2026-11-11 12:00"), rng)
+    assert r_up["state"] == "fa" and r_up["p_fa"] > 0.8, r_up
+    assert r_dn["state"] == "fo" and r_dn["p_fo"] > 0.8 and r_dn["p_fa"] < 0.05, r_dn
+    # fin de bougie : plus rien à simuler => résultat quasi déterministe
+    r_end = sc.analyze_tf(up, "1d", ts("2026-11-11 17:34"), rng)
+    assert r_end["p_fa"] in (0.0, 0.96, 0.97)   # 1.0 brut -> 0.965 après correction
+    for r in (r_up, r_dn, r_end, res_mid):
+        assert all(0.0 <= r[k] <= 1.0 for k in ("p_s_up", "p_s_down"))
+    assert r_up["p_s_up"] == 0.0                                  # pas de bougies baissières avant : S haussière impossible
+    assert r_dn["p_s_down"] == 0.0                                # pas de bougies vertes avant : S baissière impossible
+    print("OK forming_and_closed  (hausse p_fa=%.2f | baisse p_fo=%.2f)" % (r_up["p_fa"], r_dn["p_fo"]))
+
+
+def test_event_detection():
+    """Retournement synthétique : baisse puis hausse => un événement Fa doit apparaître exactement à la bougie du passage."""
+    n = 120
+    c = np.concatenate([np.linspace(130, 90, 60), np.linspace(90, 140, 60)])
+    days = pd.bdate_range(end="2026-11-10", periods=n).tz_localize(P)
+    o, h, l, c = ohlc_from_close(c, 7)
+    df = pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=days)
+    rng = np.random.default_rng(0)
+    # on remonte dans le temps jusqu'à trouver la bougie où l'événement est le plus récent
+    found = None
+    for cut in range(len(df), 40, -1):
+        sub = df.iloc[:cut]
+        r = sc.analyze_tf(sub, "1d", sub.index[-1] + pd.Timedelta(days=1), rng)
+        if r and any(k == "Fa" for k, _ in r["events"]):
+            found = (cut, r)
+            break
+    assert found, "aucun événement Fa détecté"
+    cut, r = found
+    kinds = [k for k, _ in r["events"]]
+    assert "Fa" in kinds and r["state"] == "fa"
+    # la bougie signalée est bien celle où l'état passe de non-Fa à Fa
+    hao, hah, hal, hac = sc.heikin_ashi(*(df.iloc[:cut][k].to_numpy(float) for k in ("Open", "High", "Low", "Close")))
+    mm, tk = sc.lines(hah, hal, hac); st = sc.classify(hao, hac, mm, tk)
+    k_bar = [t for kd, t in r["events"] if kd == "Fa"][-1]
+    k = list(df.iloc[:cut].index.map(lambda x: x.isoformat())).index(k_bar)
+    assert st[k] == 1 and st[k - 1] != 1
+    print("OK event_detection")
+
+
+def test_notify_filter():
+    ev = lambda kind: [{"ticker": "AIR.PA", "tf": tf, "kind": kind, "bar": "2026-11-11T10:00:00+01:00"} for tf in sc.TF_ORDER]
+    tfs = lambda kind, held=frozenset(): sorted(e["tf"] for _, e in sc.select_new(ev(kind), {}, held))
+    # actions non détenues : plus aucune notification de VALIDATION (seulement « en cours », voir test_pending)
+    assert tfs("Fa") == tfs("Fo") == tfs("S+") == tfs("S-") == []
+    # actions détenues : Fa, Fo, S+ et S- sur toutes les unités de temps
+    h = frozenset({"AIR.PA"})
+    assert tfs("Fa", h) == tfs("Fo", h) == tfs("S+", h) == tfs("S-", h) == sorted(sc.TF_ORDER)
+    # les positions passent avant les autres actions
+    mix = [{"ticker": "MC.PA", "tf": "1mo", "kind": "Fa", "bar": "2026-11-11T10:00:00+01:00"},
+           {"ticker": "AIR.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-11T10:00:00+01:00"}]
+    assert [e["ticker"] for _, e in sc.select_new(mix, {}, h)] == ["AIR.PA"]           # MC.PA non détenue : plus de notification de validation
+    mix_p = [{"ticker": "MC.PA", "tf": "1mo", "kind": "Fa~", "bar": "b", "p": 0.5}, {"ticker": "AIR.PA", "tf": "1d", "kind": "Fa~", "bar": "b", "p": 0.5}]
+    assert [e["ticker"] for _, e in sc.select_new(mix_p, {}, h)] == ["AIR.PA", "MC.PA"]   # les positions passent avant
+    assert sc.parse_holdings("air.pa, MC;OR.PA\n") == frozenset({"AIR.PA", "MC.PA", "OR.PA"}) and sc.parse_holdings("") == frozenset()
+    print("OK notify_filter")
+
+
+def crafted(trend, n_trend=30, doji=True):
+    """Série journalière : tendance puis une bougie HA dont ouverture = clôture (sans corps)."""
+    c = np.linspace(130, 90, n_trend) if trend == "down" else np.linspace(90, 130, n_trend)
+    days = pd.bdate_range(end="2026-11-10", periods=n_trend + 1).tz_localize(P)
+    o, h, l, c = ohlc_from_close(c, 11)
+    hao, hah, hal, hac = sc.heikin_ashi(o, h, l, c)
+    ho = (hao[-1] + hac[-1]) / 2                                       # ouverture HA de la bougie ajoutée
+    d = 0.8
+    o2, h2, l2, c2 = (ho, ho + d, ho - d, ho) if doji else (ho, ho + 0.5, ho - 3.5, ho - 3.0)
+    df = pd.DataFrame({"Open": np.append(o, o2), "High": np.append(h, h2), "Low": np.append(l, l2),
+                       "Close": np.append(c, c2), "Volume": 1e6}, index=days)
+    return df
+
+
+def test_s_config():
+    rng = np.random.default_rng(0)
+    after = ts("2026-11-11 19:00")
+    # S haussière (🟩) : sans corps après des bougies baissières
+    r = sc.analyze_tf(crafted("down"), "1d", after, rng)
+    assert r["s"]["active"] and r["s"]["dir"] == "up" and r["s"]["n"] >= 3, r["s"]
+    assert any(k == "S+" for k, _ in r["events"]) and not any(k == "S-" for k, _ in r["events"])
+    # S baissière (🟥) : sans corps après des bougies vertes
+    r2 = sc.analyze_tf(crafted("up"), "1d", after, rng)
+    assert r2["s"]["active"] and r2["s"]["dir"] == "down" and r2["s"]["n"] >= 3, r2["s"]
+    assert any(k == "S-" for k, _ in r2["events"]) and not any(k == "S+" for k, _ in r2["events"])
+    for tr in ("down", "up"):                                                               # bougie avec un vrai corps : pas de S
+        assert not sc.analyze_tf(crafted(tr, doji=False), "1d", after, rng)["s"]["active"]
+    old = sc.S_MIN_RUN
+    sc.S_MIN_RUN = 99
+    assert not sc.analyze_tf(crafted("down"), "1d", after, rng)["s"]["active"]             # seuil respecté
+    sc.S_MIN_RUN = old
+    # règle des mèches : dans TOUTE la série de bougies de même sens, au moins 2 sans mèche (haute pour S+, basse pour S-)
+    def wick_df(direction, clean_idx, n=30):
+        """Bougies déjà « HA » (heikin_ashi neutralisé) : n bougies de même sens puis une bougie sans corps.
+        Seules les bougies d'indices clean_idx sont sans mèche ; les autres ont une grande mèche du côté testé."""
+        o, h, l, c = [], [], [], []
+        for i in range(n):
+            if direction == "down":
+                op, cl = 200 - i, 199 - i
+                hi, lo = op, cl - 0.05
+                if i not in clean_idx: hi = op + 0.6
+            else:
+                op, cl = 100 + i, 101 + i
+                hi, lo = cl + 0.05, op
+                if i not in clean_idx: lo = op - 0.6
+            o.append(op); h.append(hi); l.append(lo); c.append(cl)
+        ref = c[-1]
+        o.append(ref); c.append(ref); h.append(ref + 0.5); l.append(ref - 0.5)
+        days = pd.bdate_range(end="2026-11-10", periods=n + 1).tz_localize(P)
+        return pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=days)
+
+    real_ha = sc.heikin_ashi
+    sc.heikin_ashi = lambda o, h, l, c: (o, h, l, c)
+    try:
+        for direction, sd in (("down", "up"), ("up", "down")):
+            act = lambda ci: sc.analyze_tf(wick_df(direction, ci), "1d", after, rng)["s"]
+            assert act(set(range(30)))["active"] and act(set(range(30)))["dir"] == sd
+            assert act({28, 29})["active"] and act({0, 28, 29})["active"]                           # les 2 bougies juste avant : franches, sans mèche
+            assert not act({0, 1})["active"] and not act({3, 8})["active"]                          # 2 sans mèche mais pas juste avant : pas de S
+            assert not act({29})["active"] and not act({5})["active"] and not act(set())["active"]  # l'une des 2 juste avant a une mèche / moins de 2
+        old_w = sc.S_WICK_MIN
+        sc.S_WICK_MIN = 0
+        sc.S_FIRM_WICK = 9.0
+        assert sc.analyze_tf(wick_df("down", set()), "1d", after, rng)["s"]["active"]            # sans contrainte
+        sc.S_FIRM_WICK = 0.15
+        sc.S_WICK_MIN = old_w
+    finally:
+        sc.heikin_ashi = real_ha
+    # notifications S : carrés vert / rouge
+    st_up = {"name": "Airbus", "price": 171.5, "chg": 1.2, "tf": {"4h": {"state": "fo", "s": {"active": True, "dir": "up", "n": 5, "bar": "b"}}}}
+    t, m, _, prio = sc.build_notification({"ticker": "AIR.PA", "tf": "4h", "kind": "S+", "bar": "b"}, st_up, "")
+    assert t == "🟩 S4h · AIR" and "S haussière 4h" in m and "après 5 bougies baissières" in m and prio == 3, (t, m)
+    st_dn = {"name": "Airbus", "price": 171.5, "chg": 1.2, "tf": {"1h": {"state": "fa", "s": {"active": True, "dir": "down", "n": 4, "bar": "b"}}}}
+    t, m, _, prio = sc.build_notification({"ticker": "AIR.PA", "tf": "1h", "kind": "S-", "bar": "b"}, st_dn, "", held=True)
+    assert t == "⭐ 🟥 S1h · AIR" and m.startswith("POSITION DÉTENUE") and "après 4 bougies vertes" in m and prio == 5, (t, m)
+    assert "🟥S" in m                                                                         # le résumé affiche le carré rouge
+    print("OK s_config")
+
+
+def test_notifications():
+    legacy = sc.NOTIFY
+    sc.NOTIFY = {"Fa": ["1d", "1w", "1mo"], "Fo": ["1d", "1w", "1mo"], "S+": ["4h", "1d", "1w", "1mo"], "S-": []}   # mécanique des alertes de validation
+    try:
+        _notifications_body()
+    finally:
+        sc.NOTIFY = legacy
+    print("OK notifications")
+
+
+def _notifications_body():
+    events = [
+        {"ticker": "AIR.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-11T00:00:00+01:00"},
+        {"ticker": "AIR.PA", "tf": "1d", "kind": "Fo", "bar": "2026-11-10T00:00:00+01:00"},
+    ]
+    data = {"stocks": {"AIR.PA": {"name": "Airbus", "price": 171.5, "chg": 1.2, "tf": {
+        "1h": {"state": "fa"}, "4h": {"state": "none"}, "1d": {"state": "fo"}, "1w": {"state": "fa"}, "1mo": {"state": "none"}}}}}
+    sent = []
+    push = lambda t, m, c, priority=3: sent.append((t, m, c, priority))
+    url = "https://x.github.io/r/"
+    # premier passage : on mémorise sans notifier
+    state, n = sc.deliver(events, data, {}, push, url, seeding=True)
+    assert n == 0 and not sent and len(state) == 2
+    # passage suivant avec les mêmes événements : rien à envoyer
+    state2, n2 = sc.deliver(events, data, state, push, url, seeding=False)
+    assert n2 == 0
+    # nouvel événement : une alerte « 🟢 Fa1j · AIR », puis plus rien au passage suivant
+    ev2 = events + [{"ticker": "AIR.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-12T00:00:00+01:00"}]
+    state3, n3 = sc.deliver(ev2, data, state2, push, url, seeding=False)
+    assert n3 == 1 and sent[0][0] == "🟢 Fa1j · AIR" and sent[0][3] == 3, sent
+    assert sent[0][2] == "https://x.github.io/r/#AIR.PA@1d"
+    assert "1h ✅" in sent[0][1] and "1j 🔻" in sent[0][1] and "Airbus" in sent[0][1] and "POSITION" not in sent[0][1]
+    _, n4 = sc.deliver(ev2, data, state3, push, url, seeding=False)
+    assert n4 == 0
+    # Fo : rouge
+    t, _, _, _ = sc.build_notification({"ticker": "AIR.PA", "tf": "1d", "kind": "Fo", "bar": "x"}, data["stocks"]["AIR.PA"], "")
+    assert t == "🔴 Fo1j · AIR"
+    # action détenue : notifications ⭐, priorité haute (5 pour Fo), et Fo 1h qui ne notifiait pas avant
+    sent.clear()
+    ev_h = [{"ticker": "AIR.PA", "tf": "1h", "kind": "Fo", "bar": "2026-11-12T10:00:00+01:00"},
+            {"ticker": "AIR.PA", "tf": "1h", "kind": "Fa", "bar": "2026-11-12T09:00:00+01:00"}]
+    _, n_h = sc.deliver(ev_h, data, {}, push, url, seeding=False, holdings=frozenset({"AIR.PA"}))
+    assert n_h == 2 and all(t.startswith("⭐") for t, *_ in sent)
+    assert {t: p for t, _, _, p in sent} == {"⭐ 🔴 Fo1h · AIR": 5, "⭐ 🟢 Fa1h · AIR": 4}, sent
+    _, n_nh = sc.deliver(ev_h, data, {}, push, url, seeding=False)                       # non détenue : rien en 1h
+    assert n_nh == 0
+    # plafond d'envois par passage
+    many = [{"ticker": f"T{i}.PA", "tf": "1d", "kind": "Fa", "bar": "2026-11-11T00:00:00+01:00"} for i in range(sc.MAX_PUSH_PER_RUN + 7)]
+    data_many = {"stocks": {e["ticker"]: data["stocks"]["AIR.PA"] for e in many}}
+    sent.clear()
+    _, n5 = sc.deliver(many, data_many, {}, push, "https://x/", seeding=False)
+    assert n5 == sc.MAX_PUSH_PER_RUN and len(sent) == sc.MAX_PUSH_PER_RUN + 1 and "7 autres" in sent[-1][0]
+
+
+def test_pending():
+    bar = "2026-11-12T10:00:00+01:00"
+    mk = lambda tf, kind, p, t="AIR.PA": {"ticker": t, "tf": tf, "kind": kind, "bar": bar, "p": p, "over": False}
+    h = frozenset({"AIR.PA"})
+    sel = lambda evs, state=None, held=frozenset(): [(k, e) for k, e in sc.select_new(evs, state or {}, held)]
+    # non détenue : Fa~ et S+~ en 4h/1j/1sem/1mois seulement ; jamais le 1h, jamais Fo~ ni S-~
+    evs = [mk(tf, k, 0.4) for tf in sc.TF_ORDER for k in ("Fa~", "Fo~", "S+~", "S-~")]
+    got = sorted((e["tf"], e["kind"]) for _, e in sel(evs))
+    assert got == sorted((tf, k) for tf in ("1w", "1mo") for k in ("Fa~", "S+~")), got
+    # détenue : tout, 1h compris
+    assert len(sel(evs, held=h)) == 5 * 4
+    # seuils : 30 % (autres unités), 50 % pour le 1h des actions détenues
+    assert all(sc.threshold(k, False) == 0.60 for k in ("1w", "1mo"))
+    assert sc.threshold("1h", True) == 0.30 and sc.threshold("1d", True) == 0.30
+    # une alerte au seuil, une 2e au-dessus de 60 %, puis plus rien pour la même bougie
+    sent = []
+    push = lambda t, m, c, priority=3: sent.append((t, m, c, priority))
+    data = {"stocks": {"AIR.PA": {"name": "Airbus", "price": 171.5, "chg": 1.2, "tf": {"4h": {"state": "none"}, "1w": {"state": "fo"}}}}}
+    st, n = sc.deliver([mk("1w", "Fa~", 0.42)], data, {}, push, "https://x/", False)
+    assert n == 1 and sent[0][0] == "🟢 Fa1sem 42% · AIR" and sent[0][3] == 3 and "EN COURS" in sent[0][1], sent
+    st, n = sc.deliver([mk("1w", "Fa~", 0.47)], data, st, push, "https://x/", False)
+    assert n == 0                                                       # même niveau : pas de répétition
+    st, n = sc.deliver([mk("1w", "Fa~", 0.65)], data, st, push, "https://x/", False)
+    assert n == 1 and sent[1][0] == "🟢 Fa1sem 65% · AIR" and "supérieure à 60" in sent[1][1] and sent[1][3] == 4
+    st, n = sc.deliver([mk("1w", "Fa~", 0.35)], data, st, push, "https://x/", False)
+    assert n == 0                                                       # la probabilité redescend : rien
+    # nouvelle bougie : nouvelle alerte possible
+    e2 = mk("1w", "Fa~", 0.4); e2["bar"] = "2026-11-13T10:00:00+01:00"
+    st, n = sc.deliver([e2], data, st, push, "https://x/", False)
+    assert n == 1
+    # S haussière en cours et alertes de danger détenues
+    sent.clear()
+    st, n = sc.deliver([mk("4h", "S+~", 0.35, "AIR.PA")], data, {}, push, "https://x/", False)
+    assert n == 0, sent                                                 # 4h : plus d'alerte pour une action non détenue
+    st, n = sc.deliver([mk("1w", "S+~", 0.35, "AIR.PA")], data, {}, push, "https://x/", False)
+    assert sent[0][0] == "🟩 S1sem 35% · AIR"
+    sent.clear()
+    sc.deliver([mk("1d", "Fo~", 0.55), mk("4h", "S-~", 0.5)], data, {}, push, "https://x/", False, holdings=h)
+    assert {t: p for t, _, _, p in sent} == {"⭐ 🔴 Fo1j 55% · AIR": 5, "⭐ 🟥 S4h 50% · AIR": 5}, sent
+    assert all(m.startswith("POSITION DÉTENUE") for _, m, _, _ in sent)
+    # positions S / Fa : SL > 90 %, Fo même UT > 60 %, S baissière UT inférieure > 60 % ; « Autre » = rien
+    pos = {"AIR.PA": [{"t": "AIR.PA", "c": "S", "tf": "1d", "e": None, "ts": None}]}
+    evp = [mk("1d", "SL~", 0.93), mk("1d", "SL~", 0.85), mk("1d", "Fo~", 0.65), mk("1d", "Fo~", 0.5), mk("4h", "S-~", 0.7), mk("1d", "S-~", 0.9), mk("1d", "Fa~", 0.9)]
+    evp[0]["sl"] = 160.0
+    got = [(e["tf"], e["kind"], e["p"]) for _, e in sc.select_new(evp, {}, h, pos)]
+    assert got == [("1d", "SL~", 0.93), ("1d", "Fo~", 0.65), ("4h", "S-~", 0.7)], got
+    oth = {"AIR.PA": [{"t": "AIR.PA", "c": "O", "tf": None, "e": None, "ts": None}]}
+    assert sc.select_new(evp, {}, h, oth) == []
+    sent.clear()
+    sc.deliver([evp[0]], data, {}, push, "https://x/", False, holdings=h, positions=pos)
+    assert sent[0][0] == "⭐ 🛑 SL 1j 93% · AIR" and sent[0][3] == 5 and "160.00" in sent[0][1], sent
+    # probabilité de toucher le SL, et règle du SL (la plus haute de deux valeurs ; S devenue Fa : plus de SL)
+    assert sc.p_touch(100, 101, 0.02) == 1.0 and 0.0 < sc.p_touch(100, 98, 0.02) < 0.5 and sc.p_touch(100, 90, 0.01) < 0.001
+    stk = {"price": 100.0, "tf": {"1d": {"state": "none", "since": "2026-11-01T00:00:00+01:00", "lv": {"low_prev": 95.0, "atr": 4.0}},
+                                  "4h": {"state": "fa", "since": "2026-11-12T10:00:00+01:00", "lv": {"low_prev": 1, "fa_body_low": 97.0}}}}
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (94.0, "S")                  # min(95 ; 100 - 1,5 x 4 = 94) : stop large
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1, "e": 110.0}, stk) == (95.0, "S")      # prix d'entrée 110 : min(95 ; 104) = 95
+    stk["tf"]["1d"]["lv"]["atr"] = None
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (95.0, "S")                  # sans ATR : plus bas de la bougie précédente
+    stk["tf"]["1d"]["lv"]["atr"] = 4.0
+    assert sc.position_sl({"c": "Fa", "tf": "1d", "ts": 1}, stk) == (None, "Fa")
+    stk["tf"]["1d"].update(state="fa")
+    assert sc.position_sl({"c": "S", "tf": "1d", "ts": 1}, stk) == (None, "Fa")
+    assert sc.parse_positions("AIR.PA:S:4h:171.5:1700000000,mc:Fa:1d,RUI.PA:O,OR")["AIR.PA"][0]["tf"] == "4h"
+    assert sc.parse_positions("OR.PA")["OR.PA"][0]["c"] == "O"
+    # premier passage : mémorisé sans notifier
+    sent.clear()
+    st, n = sc.deliver([mk("1w", "Fa~", 0.5)], data, {}, push, "https://x/", True)
+    assert n == 0 and not sent and st
+    # state.json : les vieilles alertes « en cours » sont purgées
+    old = {"AIR.PA|1d|Fa~|2020-01-01T10:00:00+01:00": 1, "AIR.PA|1d|Fa": "2026-11-11T00:00:00+01:00"}
+    assert list(sc.prune_state(old)) == ["AIR.PA|1d|Fa"]
+    print("OK pending")
+
+
+def test_auto_universe():
+    import yfinance as yf
+    real = yf.screen
+    pages = [{"total": 3, "quotes": [{"symbol": "AAA.PA", "shortName": "Aaa", "quoteType": "EQUITY"}, {"symbol": "BBB.AS", "quoteType": "EQUITY"}]},
+             {"total": 3, "quotes": [{"symbol": "CCC.PA", "shortName": "Ccc", "quoteType": "ETF"}, {"symbol": "DDD.PA", "quoteType": "EQUITY"}]}]
+    calls = []
+    yf.screen = lambda q, offset=0, size=250, **k: (calls.append(offset) or pages[min(len(calls) - 1, 1)])
+    try:
+        got = sc.fetch_paris_listing(page=2)
+        assert got == {"AAA.PA": "Aaa", "DDD.PA": "DDD"}, got            # uniquement les actions de Paris
+        def boom(*a, **k): raise RuntimeError("réseau")
+        yf.screen = boom
+        assert sc.fetch_paris_listing() == {}                             # échec : repli sur universe.csv
+    finally:
+        yf.screen = real
+    assert sc.MIN_TURNOVER_EUR == 100_000
+    print("OK auto_universe")
+
+
+def test_modes():
+    h = frozenset({"AIR.PA"})
+    at = lambda hh, mm: pd.Timestamp(f"2026-11-12 {hh:02d}:{mm:02d}", tz=P)
+    # alternance : :00-:14 complet, :15-:29 positions, :30-:44 complet, :45-:59 positions
+    assert [sc.choose_mode(at(10, m), h, {}) for m in (2, 17, 32, 47)] == ["full", "held", "full", "held"]
+    assert sc.choose_mode(at(17, 55), h, {}) == "full"                                           # passage de clôture : toujours complet
+    assert sc.choose_mode(at(10, 17), frozenset(), {}) == "full"                                 # aucune position : toujours complet
+    assert sc.choose_mode(at(10, 17), h, {"GITHUB_EVENT_NAME": "workflow_dispatch"}) == "full"   # lancement manuel
+    assert sc.choose_mode(at(10, 2), h, {"SCAN_MODE": "held"}) == "held"
+    # passage « positions » : seules les positions sont recalculées, le reste de data.json est conservé
+    prev = {"meta": {"updated": "A", "analysed": 5, "universe": 9}, "stocks": {"MC.PA": {"name": "LVMH"}, "AIR.PA": {"name": "old"}}}
+    new = {"meta": {"updated": "B"}, "stocks": {"AIR.PA": {"name": "Airbus"}}}
+    out = sc.merge_partial(prev, new)
+    assert out["stocks"]["MC.PA"] == {"name": "LVMH"} and out["stocks"]["AIR.PA"]["name"] == "Airbus"
+    assert out["meta"]["updated"] == "B" and out["meta"]["full_updated"] == "A" and out["meta"]["analysed"] == 5
+    print("OK modes")
+
+
+def test_levels_and_sectors():
+    assert sc.parse_holdings("AIR.PA:S:4h:171.5,mc.pa:Fa:1d,-,RUI") == frozenset({"AIR.PA", "MC.PA", "RUI.PA"})
+    data = {"stocks": {"AIR.PA": {}, "MC.PA": {}, "ZZ.PA": {}}}
+    themes = {"MC.PA": ("Luxe, Mode & Cosmétiques", ["Luxe"])}
+    cache = sc.apply_sectors(data, {"OLD.PA": "Industrie"}, lambda t: {"AIR.PA": ("Industrials", "Aerospace & Defense")}[t], themes=themes)
+    assert data["stocks"]["AIR.PA"]["sector"] == "Aéronautique & Défense" and cache["AIR.PA"] == {"s": "Industrials", "i": "Aerospace & Defense", "c": "?"}
+    assert data["stocks"]["MC.PA"]["sector"] == "Luxe, Mode & Cosmétiques" and data["stocks"]["MC.PA"]["themes"] == ["Luxe"]
+    assert data["stocks"]["ZZ.PA"]["sector"] == "Autres" and "ZZ.PA" not in cache                 # inconnu : réessayé au prochain passage
+    assert sc.sector_group("Solar", "Technology") == "Énergies renouvelables & Hydrogène" and sc.sector_group("", "Energy") == "Pétrole, Gaz & Services"
+    assert sc.sector_group("Auto Parts", "Consumer Cyclical") == "Automobile & Équipementiers" and sc.sector_group("Zzz", "") == "Autres"
+    assert sc.sector_group("Utilities - Renewable", "Utilities") == "Énergies renouvelables & Hydrogène" and sc.sector_group("Utilities - Regulated Gas", "Utilities") == "Services aux collectivités"
+    th = sc.load_themes()
+    uni = sc.load_universe()
+    assert all(t in th for t in uni), [t for t in uni if t not in th][:5]                          # themes.csv couvre universe.csv
+    assert th["AIR.PA"] == ("Aéronautique & Défense", ["Défense", "Spatial"]) and len({g for g, _ in th.values()}) <= 30
+    # PEA : pays du siège (Yahoo) ; inconnu conservé ; actions détenues jamais retirées ; pea_override.csv prioritaire
+    d2 = {"meta": {}, "stocks": {k: {} for k in ("A.PA", "B.PA", "C.PA", "D.PA", "E.PA")}}
+    c2 = {"A.PA": {"c": "France"}, "B.PA": {"c": "Bermuda"}, "C.PA": {"c": "?"}, "D.PA": {"c": "United Kingdom"}, "E.PA": {"c": "Netherlands"}}
+    rem = sc.apply_pea(d2, c2, holdings=frozenset({"D.PA"}), override={"E.PA": False})
+    assert sorted(rem) == ["B.PA", "E.PA"] and set(d2["stocks"]) == {"A.PA", "C.PA", "D.PA"} and d2["stocks"]["D.PA"]["pea"] is False and d2["meta"]["pea_excluded"] == 2
+    print("OK levels_and_sectors")
+
+
+def test_holdings_always_scanned():
+    now = ts("2026-11-11 10:40")
+    specs = {"AAA.PA": (1, 0.0, 5e6), "ILLIQ.PA": (2, 0.0, 10.0), "HORS.PA": (3, 0.0, 5e6)}
+    fetch = fake_fetch_factory(now, specs)
+    base, _ = sc.scan({"AAA.PA": "Alpha"}, fetch, now)
+    assert set(base["stocks"]) == {"AAA.PA"}
+    held, _ = sc.scan({"AAA.PA": "Alpha", "ILLIQ.PA": "Illiquide"}, fetch, now, holdings=frozenset({"ILLIQ.PA", "HORS.PA"}))
+    assert set(held["stocks"]) == {"AAA.PA", "ILLIQ.PA", "HORS.PA"}                  # illiquide ou hors liste : analysée quand même
+    assert held["stocks"]["HORS.PA"]["name"] == "HORS"
+    print("OK holdings_always_scanned")
+
+
+def test_end_to_end(tmp: Path):
+    specs = {}
+    for i in range(36):
+        drift = [0.0015, -0.0015, 0.0, 0.0008, -0.0008, 0.003][i % 6]
+        specs[f"T{i:02d}.PA"] = (100 + i, drift, 5e6)
+    specs["ILLIQ.PA"] = (999, 0.0, 10.0)                                   # trop peu liquide
+    uni = {t: f"Société {t[:-3]}" for t in list(specs) + ["ABSENT.PA"]}     # ABSENT : pas de données
+
+    for label, now in (("séance 10h40", ts("2026-11-11 10:40")), ("après clôture 18h05", ts("2026-11-11 18:05")), ("samedi", ts("2026-11-14 11:00"))):
+        data, events = sc.scan(uni, fake_fetch_factory(now, specs), now)
+        m = data["meta"]
+        assert m["analysed"] == 36 and m["illiquid"] == 1 and m["no_data"] == ["ABSENT.PA"], m
+        json.dumps(data)                                                    # sérialisable
+        counts = {tf: {"fa": 0, "fo": 0, "pending": 0, "forming": 0} for tf in sc.TF_ORDER}
+        for s in data["stocks"].values():
+            assert set(s["tf"]) <= set(sc.TF_ORDER) and "1d" in s["tf"]
+            assert all("active" in r["s"] and r["s"]["dir"] in (None, "up", "down") for r in s["tf"].values())
+            for tf, r in s["tf"].items():
+                assert r["state"] in ("fa", "fo", "none") and r["buy"] >= 0
+                if "lv" in r:
+                    lv = r["lv"]
+                    assert set(lv["ma"]) == {"7", "20", "50", "100", "200"} and lv["tk"] > 0 and lv["low_prev"] > 0
+                    assert (lv["fa_body_low"] is not None) == (r["state"] == "fa")
+                    if tf == "1w":                                                 # S hebdo : filtre H4 et objectif éloigné
+                        assert "don" in lv and all(v > 0 for v in lv["don"]) and lv["don"] == sorted(lv["don"]), lv
+                        assert ("h4" in lv) == ("dd52" in lv) and (lv.get("dd52") is None or lv["dd52"] <= 0.0001), lv
+                    else:
+                        assert "don" not in lv
+                if r["forming"]:
+                    counts[tf]["forming"] += 1
+                    assert r["p_fa"] is None or 0 <= r["p_fa"] <= 1
+                else:
+                    assert r["p_fa"] is None
+                counts[tf]["fa"] += r["state"] == "fa"; counts[tf]["fo"] += r["state"] == "fo"
+                counts[tf]["pending"] += bool(r["forming"] and r["state"] != "fa" and (r["p_fa"] or 0) >= sc.PROB_MIN)
+        pend_ev = [e for e in events if e["kind"].endswith("~")]
+        assert all(e["p"] >= sc.PROB_MIN for e in pend_ev) and all(e["kind"] in ("Fa~", "Fo~", "S+~", "S-~") for e in pend_ev)
+        assert not any(e["kind"] == "Fa~" and data["stocks"][e["ticker"]]["tf"][e["tf"]]["state"] == "fa" for e in pend_ev)
+        print(f"  [{label}] événements={len(events)} dont en cours={len(pend_ev)}")
+        for tf in sc.TF_ORDER:
+            print(f"     {tf:>4}: {counts[tf]}")
+        if label.startswith("séance"):
+            assert counts["1d"]["forming"] == 36 and counts["1h"]["forming"] == 0 and counts["4h"]["forming"] == 0   # horaire : seulement les positions détenues
+            dh, _ = sc.scan(uni, fake_fetch_factory(now, specs), now, holdings={"T00.PA": ["1h"]}) if "holdings" in sc.scan.__code__.co_varnames else (None, None)
+            if dh:
+                assert "4h" in dh["stocks"]["T00.PA"]["tf"] and "4h" not in dh["stocks"]["T01.PA"]["tf"]
+            demo = data
+        if label.startswith("après"):
+            assert counts["1h"]["forming"] == 0 and counts["4h"]["forming"] == 0 and counts["1d"]["forming"] == 0
+            assert counts["1w"]["forming"] == 36 and counts["1mo"]["forming"] == 36          # semaine et mois toujours en cours
+        if label == "samedi":
+            assert counts["1w"]["forming"] == 0                                              # la semaine est clôturée
+    (tmp / "data.json").write_text(json.dumps(demo, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print("OK end_to_end")
+
+
+def test_icb():
+    import icb
+    page = "<div><span>ICB Industry</span><span>Industrials</span></div><p>ICB Supersector</p><p>Industrial Goods and Services</p><p>ICB Sector</p><p>Aerospace and Defense</p><p>ICB Subsector</p><p>Aerospace</p>"
+    got = icb.parse_icb(page)
+    assert got == {"ind": "Industrials", "sup": "Industrial Goods and Services", "sec": "Aerospace and Defense", "sub": "Aerospace"}, got
+    assert icb.parse_icb("<html>rien</html>") == {}
+    assert sc.icb_group({"sub": "Automobiles", "sec": "Automobiles and Parts"}) == "Automobile & Équipementiers"
+    assert sc.icb_group({}) == "Autres"
+    data = {"stocks": {"X.PA": {}, "Y.PA": {}}}
+    called = []
+    sc.apply_sectors(data, {}, lambda t: called.append(t) or ("Technology", "Software - Application"), themes={}, icb={"X.PA": {"sub": "Aerospace"}})
+    assert data["stocks"]["X.PA"]["sector"] == "Aéronautique & Défense" and sorted(called) == ["X.PA", "Y.PA"], (data, called)
+
+
+def test_lines_3mo():
+    rng = np.random.default_rng(3)
+    idx = pd.bdate_range("2021-01-01", "2026-11-13", tz=sc.PARIS)
+    c = 100 * np.exp(np.cumsum(rng.normal(0, .01, len(idx))))
+    df = pd.DataFrame({"Open": c, "High": c * 1.01, "Low": c * .99, "Close": c, "Volume": 1e6}, index=idx)
+    q = sc.aggregate(df, "3mo")
+    assert q.index[0].month == 1 and set(q.index.month) <= {1, 4, 7, 10}, q.index[:5]
+    lv = sc.lines_3mo(df)
+    assert lv and lv["tk"] > 0 and "7" in lv["ma"] and isinstance(lv["mm7_dn"], bool), lv
+    assert sc.lines_3mo(df.iloc[:120]) is None
+
+
+def test_s_cancelled_after_s():
+    """Une bougie sans corps juste avant interrompt la série rouge : pas de nouveau S (cas UBI 4h)."""
+    n = 40
+    idx = pd.date_range("2026-06-01", periods=n, freq="B", tz=sc.PARIS)
+    c = np.r_[np.linspace(100, 110, 25), np.linspace(110, 96, 12), [96.0, 96.0, 96.1]]
+    o = np.r_[c[0], c[:-1]]
+    h, l = np.maximum(o, c) * 1.004, np.minimum(o, c) * 0.996
+    df = pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=idx)
+    r = sc.analyze_tf(df, "1d", idx[-1] + pd.Timedelta(hours=12), np.random.default_rng(0))
+    assert r["hist"].count("n") <= 2 and (r["hist"][-1] != "n" or not r["p_s_up"]), r["hist"]
+    if r["hist"].endswith("n"):
+        assert not r["p_s_up"], (r["hist"], r["p_s_up"])
+
+
+def test_carry_closed():
+    bar = "2026-11-16T00:00:00+01:00"
+    prev = {"stocks": {"A.PA": {"tf": {"1d": {"forming": True, "bar_forming": bar, "p_fa": 0.7, "p_s_up": 0.4}}}}}
+    mk = lambda: {"stocks": {"A.PA": {"tf": {"1d": {"forming": False, "state": "fa", "since": bar, "s": {"bar": bar, "active": False, "dir": None}}}}}}
+    d = mk(); sc.carry_closed(d, prev)
+    c = d["stocks"]["A.PA"]["tf"]["1d"]["closed"]
+    assert c["p_fa"] == 0.7 and c["hit_fa"] is True and c["hit_s"] is False and c["end"], c
+    d2 = mk(); d2["stocks"]["A.PA"]["tf"]["1d"]["closed"] = None
+    sc.carry_closed(d2, d); assert d2["stocks"]["A.PA"]["tf"]["1d"]["closed"]["p_fa"] == 0.7      # conservé aux passages suivants
+    d3 = mk(); d3["stocks"]["A.PA"]["tf"]["1d"]["s"]["bar"] = "autre"; sc.carry_closed(d3, prev)
+    assert "closed" not in d3["stocks"]["A.PA"]["tf"]["1d"]                                       # autre bougie : rien
+    print("OK carry_closed")
+
+
+def test_profit():
+    import profit
+    rng = np.random.default_rng(7)
+    n = 400
+    idx = pd.bdate_range("2023-01-02", periods=n, tz=sc.PARIS)
+    c = 100 * np.exp(np.cumsum(rng.normal(0.0004, 0.014, n)))
+    o = np.r_[c[0], c[:-1]] * (1 + rng.normal(0, .003, n))
+    h = np.maximum(o, c) * (1 + abs(rng.normal(0, .005, n)))
+    l = np.minimum(o, c) * (1 - abs(rng.normal(0, .005, n)))
+    df = pd.DataFrame({"Open": o, "High": h, "Low": l, "Close": c, "Volume": 1e6}, index=idx)
+    # 1) s_signals = règles de analyze_tf (comparaison sur plusieurs bougies)
+    hao, hah, hal, hac = sc.heikin_ashi(o, h, l, c)
+    up, dn, _ = profit.s_signals(hao, hah, hal, hac)
+    checked = 0
+    for k in range(60, n):
+        r = sc.analyze_tf(df.iloc[:k + 1], "1d", idx[k] + pd.Timedelta(hours=20), np.random.default_rng(0))
+        assert r is not None
+        assert (r["s"]["dir"] == "up") == bool(up[k]) and (r["s"]["dir"] == "down") == bool(dn[k]), (k, r["s"], up[k], dn[k])
+        checked += 1
+    assert up.sum() + dn.sum() > 0
+    # 2) préparation, trades Fa et S, rapport
+    A = profit.prep(df, "1d", idx[-1] + pd.Timedelta(days=1))
+    others = {"1d": A}
+    fa, _ = profit.fa_trades("X.PA", A, others)
+    assert fa and all(abs(x["ret"] - (x["exit"] / x["entry"] - 1)) < 1e-12 and x["bars"] >= 1 for x in fa)
+    sl_, _ = profit.s_trades("X.PA", A, others, 0.01)
+    # 3) simulation : TP atteint / SL touché / SL prioritaire dans une même bougie
+    B = {"n": 4, "o": np.array([10, 10, 10, 10.]), "h": np.array([10, 12, 10, 10.]), "l": np.array([10, 9.9, 9, 10.]), "c": np.array([10, 11, 10, 10.]), "st": np.zeros(4, int)}
+    r = profit.simulate(B, 0, 10.0, 9.5, [11.0], [(1.0, ("tp", 0))])
+    assert abs(r[0] - 0.10) < 1e-9 and r[1] is False, r                      # TP1 à 11 atteint en bougie 1
+    r = profit.simulate(B, 1, 10.0, 9.5, [11.0], [(1.0, ("tp", 0))])
+    assert abs(r[0] + 0.05) < 1e-9 and r[1] is True, r                       # SL (9,5) touché bougie 2
+    B["l"][1] = 9.0
+    r = profit.simulate(B, 0, 10.0, 9.5, [11.0], [(1.0, ("tp", 0))])
+    assert r[1] is True and abs(r[0] + 0.05) < 1e-9, r                       # même bougie : SL d'abord
+    assert profit.simulate(B, 0, 10.0, 9.5, [11.0], [(1.0, ("tp", 1))]) is None   # TP2 absent
+    meta = {"stocks": 1, "start": "2023", "fa_open": 0, "s_skipped": 0}
+    txt = profit.report(fa, sl_, meta, 0.005)
+    assert "Fa : entrée" in txt
+    print("OK profit", checked, "bougies comparées,", len(fa), "Fa,", len(sl_), "S")
+
+
+def test_clean_series():
+    import profit
+    c = np.r_[np.full(50, 100.0), np.full(30, 0.01), np.full(40, 0.011)]       # regroupement mal ajusté : x 1/10 000 au 51e jour
+    df = pd.DataFrame({"Open": c, "High": c, "Low": c, "Close": c, "Volume": 1.0})
+    out, n = profit.clean_series(df)
+    assert n == 50 and len(out) == 70 and out["Close"].max() < 1, (n, len(out))
+    ok, n2 = profit.clean_series(df.iloc[:50])
+    assert n2 == 0 and len(ok) == 50
+    print("OK clean_series")
+
+
+def test_backtest():
+    import backtest as bt
+    r = np.random.default_rng(5)
+    rows = []
+    for d in pd.bdate_range("2025-06-02", periods=120):
+        px = 50.0 if not rows else rows[-1][4]
+        for hr in range(9, 18):
+            o = px; px = px * float(np.exp(r.normal(0, 0.004)))
+            rows.append((d + pd.Timedelta(hours=hr), o, max(o, px) * 1.001, min(o, px) * 0.999, px, 1000))
+    h = pd.DataFrame(rows, columns=["t", "Open", "High", "Low", "Close", "Volume"]).set_index("t")
+    h.index = h.index.tz_localize(sc.PARIS)
+    rec = bt.backtest_ticker("X.PA", h, np.random.default_rng(1))
+    assert len(rec) > 200 and all(0 <= x["p"] <= 1 for x in rec) and {x["tf"] for x in rec} >= {"1d", "4h"}
+    assert "Fiabilité" in bt.report(rec, 1)
+    print("OK backtest")
+
+
+def test_calibration():
+    for (kind, grp), (xs, ys) in sc.CALIB.items():
+        assert len(xs) == len(ys) and xs == sorted(xs) and ys == sorted(ys) and xs[0] == 0 and ys[0] == 0, (kind, grp)
+    assert sc.calibrate("fa", "1d", 0.34) == 0.22 and sc.calibrate("fa", "4h", 0.0) == 0.0
+    assert 0.66 < sc.calibrate("s", "1d", 0.74) < 0.68 + 1e-9
+    assert sc.calibrate("s", "1w", 0.74) == 0.74 and sc.calibrate("fa", "1mo", 0.5) == 0.5 and sc.calibrate("fo", "1w", None) is None
+    assert 0 < sc.calibrate("fo", "1w", 0.5) < 0.5
+    print("OK calibration")
+
+
+def test_tracker():
+    import tempfile
+    import tracker
+    d = Path(tempfile.mkdtemp())
+    bar = "2026-11-09T00:00:00+01:00"
+    bar2 = "2026-11-16T00:00:00+01:00"
+    ev = lambda t, kind, p, b=bar, tf="1w": {"ticker": t, "tf": tf, "kind": kind, "bar": b, "p": p}
+    events = [ev("A.PA", "Fa~", 0.45), ev("B.PA", "Fa~", 0.72), ev("C.PA", "Fo~", 0.55), ev("D.PA", "S+~", 0.5),
+              ev("E.PA", "Fa~", 0.30), ev("F.PA", "SL~", 0.95), ev("G.PA", "Fa~", 0.7, "2026-11-12T09:00:00+01:00", "1h"),
+              ev("H.PA", "Fa~", 0.8, bar2)]
+    mk = lambda c, s=None: {"recent": {bar: {"c": c, "s": s, "lo": 1.0}}}
+    data = {"stocks": {"A.PA": {"tf": {"1w": mk(0)}}, "B.PA": {"tf": {"1w": mk(1)}}, "C.PA": {"tf": {"1w": mk(1)}},
+                       "D.PA": {"tf": {"1w": mk(0, "up")}}, "H.PA": {"tf": {"1w": {"recent": {}}}}}}
+    now1 = pd.Timestamp("2026-11-12T11:00:00+01:00")
+    st = tracker.run(events, data, [events[1]], now1, d / "log.json", d / "stats.json")
+    assert st["logged"] == 5 and st["resolved"] == 0, st          # E (< seuil), F (SL), G (1h) ignorés ; barres pas encore closes
+    # suivi : une configuration revue plus tard garde son premier pourcentage, garde le plus haut
+    tracker.run([ev("A.PA", "Fa~", 0.9)], data, [], now1, d / "log.json", d / "stats.json")
+    log = tracker.load_log(d / "log.json")
+    a = log["A.PA|1w|Fa|" + bar]
+    assert a["p0"] == 0.45 and a["pm"] == 0.9 and a["pa"] == 0.9 and "n" not in a
+    assert log["B.PA|1w|Fa|" + bar]["n"] == 1
+    now2 = pd.Timestamp("2026-11-13T18:00:00+01:00")
+    st = tracker.run([], data, [], now2, d / "log.json", d / "stats.json")
+    log = tracker.load_log(d / "log.json")
+    assert [log[k]["r"] for k in sorted(log) if k.startswith(("A", "B", "C", "D"))] == [0, 1, 0, 1], log
+    assert "r" not in log["H.PA|1w|Fa|" + bar2]
+    now3 = pd.Timestamp("2026-12-02T09:00:00+01:00")
+    tracker.run([], data, [], now3, d / "log.json", d / "stats.json")
+    assert tracker.load_log(d / "log.json")["H.PA|1w|Fa|" + bar2]["r"] == -1       # jamais vue clôturée : perdue
+    fa = [r for r in st["rows"] if r["kind"] == "Fa" and r["tf"] == "1w"][0]
+    assert fa["resolved"] == 2 and fa["all"]["n"] == 2 and fa["verdict"] == "trop tôt" and fa["sent"]["n"] == 1
+    # stats : seuil suggéré quand assez de cas fiables
+    big = {f"X{i}.PA|1w|Fa|b{i}": {"p0": 0.62 + (i % 3) * 0.1, "pm": 0.8, "d": "2026-11-10", "r": 1 if i % 4 else 0} for i in range(80)}
+    row = [r for r in tracker.compute_stats(big, now3)["rows"] if r["tf"] == "1w"][0]
+    assert row["suggest"] == 0.4 and row["verdict"] in ("calibré", "trop optimiste", "plus prudent que la réalité"), row
+    print("OK tracker")
+
+
+if __name__ == "__main__":
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/tmp")
+    out.mkdir(parents=True, exist_ok=True)
+    test_heikin_ashi()
+    test_body_modes()
+    test_slope()
+    test_persistence()
+    test_lines_and_classify()
+    test_calendar()
+    test_aggregate()
+    test_forming_and_closed()
+    test_event_detection()
+    test_notify_filter()
+    test_s_config()
+    test_notifications()
+    test_pending()
+    test_auto_universe()
+    test_modes()
+    test_levels_and_sectors()
+    test_icb()
+    test_clean_series()
+    test_profit()
+    test_carry_closed()
+    test_s_cancelled_after_s()
+    test_lines_3mo()
+    test_holdings_always_scanned()
+    test_calibration()
+    test_tracker()
+    test_backtest()
+    test_end_to_end(out)
+    print("\nTOUS LES TESTS PASSENT")

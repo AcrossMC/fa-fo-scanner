@@ -58,7 +58,9 @@ PROB_MIN = 0.30            # une action apparaît (et notifie) quand sa probabil
 PROB_HIGH = 0.60           # 2e notification (une seule par bougie) quand la probabilité dépasse ce seuil
 PROB_MIN_HELD_1H = 0.50    # seuil pour le 1h des actions détenues (le 1h n'est affiché QUE pour les actions détenues)
 _ALL = ["1h", "4h", "1d", "1w", "1mo"]
-VISIBLE_TF = ["4h", "1d", "1w", "1mo"]     # unités de temps affichées / notifiées pour les actions NON détenues
+VISIBLE_TF = ["1w", "1mo"]     # unités de temps affichées / notifiées pour les actions NON détenues (les études de profit n'ont rien montré sous l'hebdomadaire)
+H4_DROP = 0.30             # S hebdo « fort » : cours à plus de 30 % sous le plus haut de 52 semaines (étude : le seul filtre qui bat le hasard)
+DON_PERIODS = (13, 26, 52, 104)   # plus hauts de N semaines : objectif éloigné « Donchian-2 » (2e niveau au-dessus du cours)
 # Types : Fa, Fo, S+ (S haussière : sans corps après des bougies baissières), S- (S baissière : après des bougies vertes).
 # Notifications « en cours » (alerte quand la probabilité franchit le seuil) : actions non détenues = Fa et S+ seulement.
 NOTIFY_PENDING = {"Fa": VISIBLE_TF, "S+": VISIBLE_TF}
@@ -345,7 +347,7 @@ def px(v, ref=None):
     return round(float(v), 4 if r < 1 else 3 if r < 10 else 2)
 
 
-def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur):
+def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur, tf=None):
     """Niveaux utiles à l'application pour les stops et objectifs (SL / TP) d'une position, sur cette unité de temps.
     ma : MM7 (Heikin Ashi, comme la configuration) et MM20 / 50 / 100 / 200 des clôtures classiques ; tk / mm7_dn : Tenkan et pente
     de la MM7 (pour « Fo dans l'UT supérieure ») ; low_prev : plus bas (mèche ou corps) de la dernière bougie HA clôturée ;
@@ -360,7 +362,28 @@ def levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur):
         hi_, lo_, cl_ = (df[k].to_numpy(dtype=float)[:nc] for k in ("High", "Low", "Close"))
         tr = np.maximum(hi_[1:] - lo_[1:], np.maximum(np.abs(hi_[1:] - cl_[:-1]), np.abs(lo_[1:] - cl_[:-1])))
         atr = px(tr[-ATR_PERIOD:].mean(), cl_[-1])
+    extra = {}
+    if tf == "1w":                                                      # S hebdo : filtre « > 30 % sous le plus haut 52 sem. » et objectif éloigné (étude eu.py / entries.py)
+        hi_all = df["High"].to_numpy(dtype=float)[:nc]
+        cl_all = df["Close"].to_numpy(dtype=float)[:nc]
+        if nc >= 53:
+            extra["dd52"] = round(float(cl_all[-1] / hi_all[-53:].max() - 1), 4)
+            extra["h4"] = bool(extra["dd52"] <= -H4_DROP)
+        last = cl_all[-1]
+        don = []
+        for n_ in DON_PERIODS:
+            if nc >= n_:
+                v = float(hi_all[-n_:].max())
+                if v > last * 1.0001 and (not don or (v - don[-1]) / don[-1] >= 0.01):
+                    don.append(v)
+        don = sorted(don)
+        cleaned = []
+        for v in don:                                                   # niveaux voisins (< 1 %) fusionnés
+            if not cleaned or (v - cleaned[-1]) / cleaned[-1] >= 0.01:
+                cleaned.append(v)
+        extra["don"] = [px(v, last) for v in cleaned[:3]]
     return {
+        **extra,
         "ma": ma,
         "atr": atr,
         "tk": px(tk[-1]),
@@ -484,7 +507,7 @@ def analyze_tf(df, tf, now_eff, rng):
         "tenkan": px(tk[nc - 1]),
         "events": events,
         "buy": int(c[-1] * df["Volume"].iloc[-1]) if c[-1] > o[-1] and np.isfinite(df["Volume"].iloc[-1]) else 0,
-        "lv": levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur),
+        "lv": levels(df, o, c, hao, hac, hal, mm, tk, nc, j, cur, tf),
     }
     if forming:
         rets = np.diff(np.log(c[:nc]))[-100:]
@@ -627,10 +650,8 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
     daily = fetch(tickers, "5y", "1d")
     no_data = [t for t in tickers if t not in daily]
     liquid = [t for t in tickers if t in daily and (t in holdings or turnover(daily[t]) >= min_turnover)]
-    hourly = fetch(liquid, "3mo", "1h") if liquid else {}
     held_liquid = [t for t in liquid if t in holdings]
-    if held_liquid:                                           # historique plus long pour la MM100 / MM200 en 4h des positions
-        hourly.update(fetch(held_liquid, "2y", "1h"))
+    hourly = fetch(held_liquid, "2y", "1h") if held_liquid else {}        # horaire : seulement les positions détenues (les autres actions ne sont suivies qu'à partir de l'hebdo)
     rng = np.random.default_rng(12345)
 
     stocks, events = {}, []
@@ -660,9 +681,11 @@ def scan(universe, fetch, now, min_turnover=MIN_TURNOVER_EUR, holdings=frozenset
                                     ("S-", res["p_s_down"], True)):
                     if p is not None and ok and p >= threshold(tf, held):
                         events.append({"ticker": t, "tf": tf, "kind": kind + "~", "bar": res["bar_forming"], "p": p,
-                                       "over": res["over"]["fa"] if kind == "Fa" else res["over"]["fo"] if kind == "Fo" else False})
+                                       "over": res["over"]["fa"] if kind == "Fa" else res["over"]["fo"] if kind == "Fo" else False,
+                                       "h4": bool(kind == "S+" and tf == "1w" and (res.get("lv") or {}).get("h4"))})
                     elif p is not None and ok and not held and tf in VISIBLE_TF and OBS_MIN[kind] <= p < threshold(tf, held):
-                        events.append({"ticker": t, "tf": tf, "kind": kind + "~", "bar": res["bar_forming"], "p": p, "obs": True})   # suivi seulement, pas de notification
+                        events.append({"ticker": t, "tf": tf, "kind": kind + "~", "bar": res["bar_forming"], "p": p, "obs": True,
+                                       "h4": bool(kind == "S+" and tf == "1w" and (res.get("lv") or {}).get("h4"))})   # suivi seulement, pas de notification
             tfs[tf] = res
         if not tfs:
             continue
@@ -816,7 +839,7 @@ def build_notification(e, stock, app_url, held=False):
             what += "\nLa bougie remplit déjà la condition en ce moment."
         if e.get("level") == 2:
             what += f"\nProbabilité supérieure à {int(PROB_HIGH * 100)} %."
-        message = f"{stock['name']} — {fmt_px(stock['price'])} €\n{what}\n{summary_line(stock)}"
+        message = f"{stock['name']} — {fmt_px(stock['price'])} €\n{what}{s_weekly_note(stock, e['tf'], kind)}\n{summary_line(stock)}"
         priority = 4 if e.get("level") == 2 else 3
         if held:
             title = f"⭐ {title}"
@@ -834,7 +857,7 @@ def build_notification(e, stock, app_url, held=False):
     else:
         part = ("Haut du corps" if kind == "Fa" else "Bas du corps") if BODY_MODE == "edge" else "Corps"
         what = f"{part} Heikin Ashi {lab} {'au-dessus' if kind == 'Fa' else 'sous'} de la MM7 et de la Tenkan"
-    message = f"{stock['name']} — {fmt_px(stock['price'])} €\n{what}\n{summary_line(stock)}"
+    message = f"{stock['name']} — {fmt_px(stock['price'])} €\n{what}{s_weekly_note(stock, e['tf'], kind)}\n{summary_line(stock)}"
     priority = 3
     if held:
         title = f"⭐ {title}"
@@ -842,6 +865,18 @@ def build_notification(e, stock, app_url, held=False):
         priority = 5 if kind in ("Fo", "S-") else 4
     click = f"{app_url.rstrip('/')}/#{e['ticker']}@{e['tf']}" if app_url else None
     return title, message, click, priority
+
+
+def s_weekly_note(stock, tf, kind):
+    """Ligne d'information pour une S hebdo haussière : filtre « > 30 % sous le plus haut 52 sem. » et objectif éloigné (plus haut 26-52 sem.)."""
+    if kind != "S+" or tf != "1w":
+        return ""
+    lv = (stock["tf"].get("1w") or {}).get("lv") or {}
+    if not lv.get("h4"):
+        return ""
+    don = lv.get("don") or []
+    far = f" Objectif éloigné : {fmt_px(don[1] if len(don) > 1 else don[0])} €." if don else ""
+    return f"\n⭐ Action à plus de {int(H4_DROP * 100)} % sous son plus haut 52 sem. (cas étudié le plus favorable).{far}"
 
 
 def prune_state(state, keep_days=45):

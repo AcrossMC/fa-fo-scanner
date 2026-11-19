@@ -662,6 +662,11 @@
 "i": "Luxury Goods",
 "s": "Consumer Cyclical"
 },
+"CIV.PA": {
+"c": "France",
+"i": "Banks - Regional",
+"s": "Financial Services"
+},
 "CLARI.PA": {
 "c": "?",
 "i": "",

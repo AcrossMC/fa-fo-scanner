@@ -337,6 +337,11 @@
 "i": "Specialty Business Services",
 "s": "Industrials"
 },
+"ALJXR.PA": {
+"c": "France",
+"i": "Consumer Electronics",
+"s": "Technology"
+},
 "ALKAL.PA": {
 "c": "France",
 "i": "Semiconductors",
@@ -455,6 +460,11 @@
 "c": "France",
 "i": "Biotechnology",
 "s": "Healthcare"
+},
+"ALVU.PA": {
+"c": "France",
+"i": "Internet Retail",
+"s": "Consumer Cyclical"
 },
 "AM.PA": {
 "c": "France",

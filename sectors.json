@@ -367,6 +367,11 @@
 "i": "Medical Devices",
 "s": "Healthcare"
 },
+"ALMEX.PA": {
+"c": "Italy",
+"i": "Telecom Services",
+"s": "Communication Services"
+},
 "ALMIB.PA": {
 "c": "France",
 "i": "Agricultural Inputs",
